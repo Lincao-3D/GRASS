@@ -92,9 +92,9 @@ class Button(UIElement):
     def on_unhover(self):
         self.set_image(self.original_image)
 
-    def check_for_input(self, mause_position: Tuple[int, int]) -> bool:
+    def check_for_input(self, mouse_position: Tuple[int, int]) -> bool:
         if self.enabled:
-            if self.rect.collidepoint(mause_position):
+            if self.rect.collidepoint(mouse_position):
                 return True
         return False
 

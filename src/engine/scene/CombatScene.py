@@ -2,6 +2,9 @@ from typing import List, Optional, TYPE_CHECKING
 
 import pygame
 
+# Dice animation import
+from src.engine.ui.DiceRollAnimation import DiceRollAnimation
+
 from src.constants import IMAGE_SIZE
 from src.engine.scene.Scene import Scene
 from src.engine.scene.SceneElement import SceneElement
@@ -29,6 +32,10 @@ class CombatScene(Scene):
         self.selected_skill: Optional[Skill] = None
         self.selected_item: Optional[Usable] = None
         self.target:Entity = combat.enemies[0]
+
+        # Dice animation state variables
+        self.dice_animation = None
+        self.roll_animation_active = False
 
         self.rg_skill_select = RadioButtonGroup(
             position=(50, screen.get_height()  - screen.get_height() // 4),
@@ -109,19 +116,45 @@ class CombatScene(Scene):
 
 
     def update(self):
+        # Handle dice animation completion
+        if self.roll_animation_active and self.dice_animation:
+            self.dice_animation.update(None, None)
+            # Auto-remove after animation (keeps screen clean)
+            if not self.dice_animation.is_rolling:
+                self._end_dice_animation()
+
+
         super().update()
         self.combat.update()
         self._update_action_buttons()
         self._update_log_text()
         self._update_life_bar()
         self._update_target()
+        self.typewriter.update()
 
-
-    def handle_event(self, event):
-        super().handle_event(event)
-        if event and event.type == pygame.KEYDOWN and event.key == pygame.K_END:
-            for enemy in self.combat.enemies:
-                enemy.apply_damage(None,9999)
+    def draw(self, screen):
+        # 1. Draw the base scene (background, buttons, etc.)
+        super().draw(screen)
+        
+        # 2. Draw the typewriter log (usually at the bottom)
+        # Position (50, 480) is a safe bet for a 800x600 screen
+        self.typewriter.draw(screen, (50, 480))
+        
+        # 3. Draw the dice animation if active
+        if self.roll_animation_active and self.dice_animation:
+            self.dice_animation.draw(screen)
+            
+    def handle_events(self, events):
+        # 1. Define mouse_pos by grabbing it from pygame
+        mouse_pos = pygame.mouse.get_pos()
+        
+        super().handle_events(events, mouse_pos)
+        
+        # 2. Iterate through the events list to define 'event'
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_END:
+                for enemy in self.combat.enemies:
+                    enemy.apply_damage(None, 9999)
 
     def build_scene(self, game: "Game") -> List[SceneElement]:
         return [
@@ -153,6 +186,23 @@ class CombatScene(Scene):
         self.log_text.position = (get_center_x(self.screen, get_default_font(24).size(log)[0]), self.screen.get_height() - 100)
         self.log_text.change_text(log)
 
+    """ Dice logic """
+    def _start_dice_animation(self):
+        # Clear existing dice
+        if self.dice_animation and self.dice_animation in self.elements:
+            self.elements.remove(self.dice_animation)
+        
+        # New dice at top-left origin (10, 10) - NO result text overlay
+        self.dice_animation = DiceRollAnimation(position=(10, 10), duration_ms=800)  # Shorter for combat
+        self.elements.append(self.dice_animation)
+        self.roll_animation_active = True
+
+    def _end_dice_animation(self):
+        if self.dice_animation and self.dice_animation in self.elements:
+            self.elements.remove(self.dice_animation)
+            self.dice_animation = None
+        self.roll_animation_active = False
+    """ End of dice logic """
 
     def _update_action_buttons(self):
         for button in self.action_buttons:
@@ -169,14 +219,21 @@ class CombatScene(Scene):
         self.selected_item = item
 
     def _player_attack(self):
+        # Start dice animation FIRST (pure atmosphere, no text overlay)
+        self._start_dice_animation()
+        
+        # Roll happens immediately (hidden), animation provides visual feedback
         passed, result, damage = self.game.player.attack(self.target)
-        self.combat.print_text(f"You rolled {result} {"(success!)" if passed else "(miss!)"}" if result != 20 else f"You rolled a crit!")
+        
+        # Schedule log text AFTER animation (handled by update timing)
+        self.combat.print_text(f"You rolled {result} {'(success!)' if passed else '(miss!)'}")
         if passed and damage > 0:
             self.combat.delayed_action(
                 text=f"You deal {damage} damage to {self.target.name}",
-                action=lambda: self.target.apply_damage(self.target,damage,self.game.player.get_damage_type(),self.combat),
+                action=lambda: self.target.apply_damage(self.target, damage, self.game.player.get_damage_type(), self.combat),
             )
         self.combat.end_player_turn()
+
 
     def _use_skill_button(self):
         if self.use_item:

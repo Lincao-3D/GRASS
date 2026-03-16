@@ -43,24 +43,32 @@ class TextAreaShow(UIElement):
     def render(self, surface: pygame.Surface):
         if not self.visible:
             return
-        # Fundo
+        
+        # Fundo + Borda (unchanged)
         pygame.draw.rect(surface, self.background_color, self.rect)
-
-        # Borda
         pygame.draw.rect(surface, self.border_color, self.rect, 2)
-
-        # Texto
+        
+        # 🔥 FIX: Calculate lines FIRST to know total
         lines = self._wrap_text()
         line_height = self.font.get_height()
-
         max_visible_lines = (self.height - 2 * self.padding) // line_height
+        
+        # 🔥 AUTO-SCROLL: Always show bottom when new text added
+        total_lines = len(lines)
+        if total_lines > max_visible_lines:
+            self.scroll_offset = total_lines - max_visible_lines  # Jump to bottom
+        else:
+            self.scroll_offset = 0
+        
+        # Render visible lines
         visible_lines = lines[self.scroll_offset:self.scroll_offset + max_visible_lines]
-
+        
         y = self.rect.y + self.padding
         for line in visible_lines:
             text_surf = self.font.render(line, True, self.text_color)
             surface.blit(text_surf, (self.rect.x + self.padding, y))
             y += line_height
+
 
     def update(self, event: pygame.event.Event, mouse_position: Tuple[int, int]):
         if event is None:

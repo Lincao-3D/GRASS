@@ -6,6 +6,8 @@ from typing import AnyStr
 import numpy as np
 import pygame
 
+import json
+
 from src.constants import DEBUG
 
 
@@ -65,6 +67,24 @@ def grid_position(
 
     return x, y
 
+def apply_volume():
+    try:
+        with open("options.json", "r") as f:
+            opts = json.load(f)
+
+        vol = 0.0 if opts.get("is_muted", False) else opts.get("master_volume", 0.5)
+
+        if pygame.mixer.get_init():
+
+            pygame.mixer.music.set_volume(vol)
+
+            for i in range(pygame.mixer.get_num_channels()):
+                ch = pygame.mixer.Channel(i)
+                ch.set_volume(vol)
+
+    except FileNotFoundError:
+        pass
+
 def typewriter_sound():
     SAMPLE_RATE = 44100
     TYPE_VOLUME = 0.4
@@ -83,6 +103,36 @@ def typewriter_sound():
     sound_stereo = np.column_stack((sound, sound))
     pygame.sndarray.make_sound(sound_stereo).play()
 
+def play_retro_woosh(duration=0.2, rising=True):
+    SAMPLE_RATE = 44100
+    VOLUME = 0.3
+    samples = int(SAMPLE_RATE * duration)
+    t = np.linspace(0, duration, samples)
+
+    # 1. Definição de Frequência (o "sweep")
+    # Para um woosh de transição, vamos de 100Hz a 1000Hz (ou vice-versa)
+    f_start, f_end = (100, 1000) if rising else (1000, 100)
+    
+    # Criando uma rampa de frequência (Chirp signal)
+    freqs = np.linspace(f_start, f_end, samples)
+    phases = 2 * np.pi * np.cumsum(freqs) / SAMPLE_RATE
+    wave = np.sin(phases)
+
+    # 2. Adicionar um pouco de "sujeira" retrô (ruído suave)
+    noise = np.random.uniform(-0.2, 0.2, samples)
+    combined = wave + noise
+
+    # 3. Envelope de Amplitude (Fade in e Fade out suave para não estalar)
+    envelope = np.sin(np.pi * np.arange(samples) / samples) # Formato de arco
+
+    # 4. Finalização
+    sound_array = (combined * envelope * 32767 * VOLUME).astype(np.int16)
+    sound_stereo = np.column_stack((sound_array, sound_array))
+    
+    pygame.sndarray.make_sound(sound_stereo).play()
+
+# Exemplo de uso para o dado:
+# play_retro_woosh(duration=0.15, rising=True)
 
 
 if __name__ == "__main__":
