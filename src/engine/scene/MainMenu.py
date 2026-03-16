@@ -1,46 +1,58 @@
-from typing import List, Optional
-import pygame
 import os
+import json
+from typing import List, TYPE_CHECKING
 from src.engine.scene.Scene import Scene
 from src.engine.scene.SceneElement import SceneElement
 from src.engine.ui.Button import Button
-from src.engine.ui.ImageTransformStrategy import ColorInverter
 from src.engine.ui.SimpleText import SimpleText
-from src.utils import get_center_x, get_default_font
+from src.utils import get_center_x
+
+if TYPE_CHECKING:
+    from src.engine.Game import Game
 
 class MainMenu(Scene):
-    def build_scene(self, game) -> List[SceneElement]:
+    def build_scene(self, game: "Game") -> List[SceneElement]:
+        self.game = game
+        screen_w = self.screen.get_width()
+        
         elements = [
-            SimpleText("G.R.A.S.S", 48, (get_center_x(self.screen, 200), 50)),
+            SimpleText("GRASS RPG", 64, (get_center_x(self.screen, 300), 100)),
             Button(
-                image=None, position=(get_center_x(self.screen, 200), 150),
-                text=SimpleText("New Game!", 30, (0,0), (0,0,0)),
-                background_color=(255,255,255),
+                text=SimpleText("New Game", 24, (0, 0), (255, 255, 255)),
+                position=(screen_w // 2 - 100, 250),
                 click_function=self.character_creator_scene
             )
         ]
 
-        # Dynamic button for continuing/continue
-        if os.path.exists("saves/current_adventure.dat"):
+        # Check for save file
+        if os.path.exists("save_game.json"):
             elements.append(Button(
-                image=None, position=(get_center_x(self.screen, 200), 230),
-                text=SimpleText("Continue Adventure", 30, (0,0), (0,0,0)),
-                background_color=(100,255,100), # Verde suave para destacar
-                click_function=self.game.load_session
+                text=SimpleText("Continue", 24, (0, 0), (100, 255, 100)),
+                position=(screen_w // 2 - 100, 320),
+                click_function=self.load_game_scene
             ))
 
         elements.append(Button(
-            image=None, position=(get_center_x(self.screen, 200), 310),
-            text=SimpleText("Options", 30, (0,0), (0,0,0)),
-            background_color=(255,255,255),
+            text=SimpleText("Options", 24, (0, 0), (255, 255, 255)),
+            position=(screen_w // 2 - 100, 390),
             click_function=self.options_scene
         ))
+
         return elements
-    
+
+    def load_game_scene(self):
+        # The actual restoration logic is usually handled by the Game class
+        # But we trigger the transition to ChatScene here
+        from src.engine.scene.ChatScene import ChatScene
+        # Assuming your Game class has a method to load the file into its state:
+        # self.game.load_save_file("save_game.json") 
+        self.game.load_session("save_game.json") # Check usage
+        self.game.change_scene(ChatScene(self.screen, self.game, self.game.scenario))
+
     def options_scene(self):
         from src.engine.scene.Options import Options
-        self.game.change_scene(Options(None,self.screen,self.game))
+        self.game.change_scene(Options(None, self.screen, self.game))
 
     def character_creator_scene(self):
         from src.engine.scene.CharacterCreator import CharacterCreator
-        self.game.change_scene(CharacterCreator(None,self.screen,self.game))
+        self.game.change_scene(CharacterCreator(None, self.screen, self.game))

@@ -1,47 +1,65 @@
 import pygame
-import math
 from src.engine.ui.UIElement import UIElement
+from src.engine.ui.SimpleText import SimpleText
 
 class HorizontalBar(UIElement):
-    def __init__(self, x, y, width, text="PLACEHOLDER"):
-        super().__init__(x, y)
-        self.width = width
-        self.height = 30  # 3 linhas de ~10px
-        self.text = text
-        self.font = pygame.font.Font("assets/font.ttf", 18)
+    def __init__(self, screen_w, screen_h, text, hold_duration_ms=2000):
+        self.screen_w = screen_w
+        self.height = 60
+        self.y = (screen_h // 2) - (self.height // 2)
         
-        # Cores
-        self.COLOR_BLACK = (0, 0, 0)
-        self.COLOR_DARK_GRAY = (40, 40, 40)
-        self.COLOR_WHITE = (255, 255, 255)
+        self.x = screen_w  # Starts off-screen right
+        self.target_center_x = 0  # Will rest at x=0 (full width stripe)
         
-        self.row_height = 8
-        self.offset = 15  # Deslocamento entre linhas
-        self.edge_width = 25 # Largura da seção ▤
+        self.text_elem = SimpleText(text, 28, (0, 0), (255, 255, 255))
+        
+        # State Machine: ENTER -> HOLD -> EXIT -> DONE
+        self.state = "ENTER"
+        self.hold_duration = hold_duration_ms
+        self.hold_start_time = 0
+        self.speed = 40
+        
+        self.flash_timer = 0
+        self.is_done = False # Mark True to let Scene remove it
+
+        # Optional: 
+        pygame.mixer.Sound('assets/sfx/retro_woosh.wav').play()
+
+    def update(self, event=None, mouse_pos=None):
+        if self.state == "ENTER":
+            self.x -= self.speed
+            if self.x <= 0:
+                self.x = 0
+                self.state = "HOLD"
+                self.hold_start_time = pygame.time.get_ticks()
+                
+        elif self.state == "HOLD":
+            now = pygame.time.get_ticks()
+            if now - self.hold_start_time > self.hold_duration:
+                self.state = "EXIT"
+                
+        elif self.state == "EXIT":
+            self.x -= self.speed
+            if self.x < -self.screen_w:
+                self.is_done = True # Safe to garbage collect
 
     def draw(self, screen):
-        now = pygame.time.get_ticks()
-        # Efeito de piscar baseado no tempo (senoide)
-        flash_alpha = (math.sin(now * 0.01) + 1) / 2
-        flash_color = [int(40 + (60 * flash_alpha))] * 3 # Oscila entre cinza escuro e claro
-
-        for i in range(3):
-            # Calcula o deslocamento horizontal da linha (escada)
-            row_x = self.x + (i * self.offset)
-            row_y = self.y + (i * (self.row_height + 2))
-            
-            # 1. Desenha as extremidades "▤" (Piscantes)
-            # Esquerda
-            pygame.draw.rect(screen, flash_color, (row_x, row_y, self.edge_width, self.row_height))
-            # Direita
-            pygame.draw.rect(screen, flash_color, (row_x + self.width - self.edge_width, row_y, self.edge_width, self.row_height))
-            
-            # 2. Desenha o centro "■" (Preto sólido)
-            center_x = row_x + self.edge_width
-            center_width = self.width - (2 * self.edge_width)
-            pygame.draw.rect(screen, self.COLOR_BLACK, (center_x, row_y, center_width, self.row_height))
-
-        # 3. Texto Placeholder centralizado no topo
-        text_surf = self.font.render(self.text, True, self.COLOR_WHITE)
-        text_rect = text_surf.get_rect(center=(self.x + self.width // 2 + self.offset, self.y - 15))
-        screen.blit(text_surf, text_rect)
+        if self.is_done: return
+        
+        # Draw Black Stripe (with alpha)
+        stripe_surface = pygame.Surface((self.screen_w, self.height), pygame.SRCALPHA)
+        stripe_surface.fill((0, 0, 0, 200)) # 200 alpha
+        
+        # Flashing borders (Gold/White alternating)
+        self.flash_timer += 1
+        border_color = (255, 215, 0) if (self.flash_timer // 10) % 2 == 0 else (255, 255, 255)
+        pygame.draw.line(stripe_surface, border_color, (0, 0), (self.screen_w, 0), 2)
+        pygame.draw.line(stripe_surface, border_color, (0, self.height-2), (self.screen_w, self.height-2), 2)
+        
+        screen.blit(stripe_surface, (self.x, self.y))
+        
+        # Draw Text centered inside the stripe
+        text_x = self.x + (self.screen_w // 2) - (self.text_elem.font.size(self.text_elem.text)[0] // 2)
+        text_y = self.y + 15
+        self.text_elem.position = (text_x, text_y)
+        self.text_elem.draw(screen)

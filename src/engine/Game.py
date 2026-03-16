@@ -9,7 +9,8 @@ from src.utils import apply_volume
 
 class Game:
     def __init__(self, scenario, start_player=None):
-        self.screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((800,600), pygame.FULLSCREEN)
+        pygame.display.set_caption("GRASS RPG")
         self.scene = None
         self.scenario = scenario
         self.running = True
@@ -19,6 +20,8 @@ class Game:
         pygame.mixer.init()
         apply_volume()
         self.player = start_player
+        self.options = {"master_volume": 0.5, "is_muted": False} # Default fallback
+        self.load_options() # Loads and applies volume
         self.save_path = "saves/current_adventure.dat"
         
         # Chat initialization focused on debug_api_key
@@ -34,13 +37,27 @@ class Game:
         from src.engine.ai.tools import PlayerToolkit
         return PlayerToolkit(self)
 
-    def load_options(self) -> Dict[str, Any]:
-        if os.path.exists("src/options.json"):
-            with open("src/options.json", "r") as f: return json.load(f)
-        return self._get_default_options()
+    def load_options(self):
+        """Loads options from src/options.json and applies audio settings."""
+        try:
+            with open("src/options.json", "r") as f:
+                self.options = json.load(f)
+        except FileNotFoundError:
+            pass # Uses default dict above
+        self.apply_volume()
+
     def save_options(self):
+        """Saves current options dict to src/options.json and applies them."""
         with open("src/options.json", "w") as f:
             json.dump(self.options, f, indent=4)
+        self.apply_volume()
+
+    def apply_volume(self):
+        """Applies the volume to pygame mixer based on options."""
+        vol = 0.0 if self.options.get("is_muted", False) else self.options.get("master_volume", 0.5)
+        pygame.mixer.music.set_volume(vol)
+        # Note: If you load SFX globally, you can also set their volumes here.
+        # e.g., retro_woosh_sfx.set_volume(vol)
 
     def _get_default_options(self):
         # Priority given to debug_api_key as repo default
