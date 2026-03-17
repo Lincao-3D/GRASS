@@ -39,5 +39,7 @@ class Scene(ABC):
 
     def update(self):
         mouse_position = pygame.mouse.get_pos()
+        self.elements = [e for e in self.elements if not getattr(e, 'is_done', False)]
         for element in self.elements:
             element.update(None, mouse_position)
+        
