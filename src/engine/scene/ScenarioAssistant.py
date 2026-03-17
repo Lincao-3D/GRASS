@@ -26,6 +26,7 @@ class ScenarioAssistant(Scene):
             ),
 
             Button(
+                image=None,
                 text=SimpleText("Back to Options", 20, (0,0), (255,255,255)),
                 position=(modal_x + 50, modal_y + 320),
                 click_function=self._close

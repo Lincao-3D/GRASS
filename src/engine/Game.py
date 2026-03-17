@@ -9,22 +9,30 @@ from src.utils import apply_volume
 
 class Game:
     def __init__(self, scenario, start_player=None):
-        self.screen = pygame.display.set_mode((800,600), pygame.FULLSCREEN)
+        # 1. Core Pygame Setup
+        self.screen = pygame.display.set_mode((800, 600), pygame.FULLSCREEN)
         pygame.display.set_caption("GRASS RPG")
+        pygame.mixer.init()
+        
+        # 2. State & Options Initialization
         self.scene = None
         self.scenario = scenario
         self.running = True
         self.clock = pygame.time.Clock()
         self.fps = 60
-        self.options = self.load_options()
-        pygame.mixer.init()
-        apply_volume()
         self.player = start_player
-        self.options = {"master_volume": 0.5, "is_muted": False} # Default fallback
-        self.load_options() # Loads and applies volume
         self.save_path = "saves/current_adventure.dat"
         
-        # Chat initialization focused on debug_api_key
+        # Initialize options with hard defaults, then try to load from file
+        self.options = {
+            "master_volume": 0.5, 
+            "is_muted": False,
+            "api_key": os.environ.get("debug_api_key", ""),
+            "gpt_model": "gemini-1.5-flash"
+        }
+        self.load_options() # This will overwrite defaults if JSON is valid
+
+        # 3. Chat System Initialization
         api_key = self.options.get("api_key")
         self.chat = Chat(
             system_prompt=scenario.system_prompt,
@@ -33,31 +41,42 @@ class Game:
             game=self
         ) if api_key else None
 
-    def get_toolkit(self):
-        from src.engine.ai.tools import PlayerToolkit
-        return PlayerToolkit(self)
+    def get_options_path(self):
+        """Helper to guarantee we always hit src/options.json relative to this file."""
+        # This goes up two levels from Game.py (scene/engine) to reach src/
+        return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "src", "options.json")
 
     def load_options(self):
         """Loads options from src/options.json and applies audio settings."""
+        path = self.get_options_path()
         try:
-            with open("src/options.json", "r") as f:
-                self.options = json.load(f)
-        except FileNotFoundError:
-            pass # Uses default dict above
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    file_data = json.load(f)
+                    self.options.update(file_data) # Merge file data into defaults
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"[Config] Error loading {path}: {e}. Using internal defaults.")
+            
         self.apply_volume()
 
     def save_options(self):
-        """Saves current options dict to src/options.json and applies them."""
-        with open("src/options.json", "w") as f:
-            json.dump(self.options, f, indent=4)
+        """Saves current options dict to src/options.json."""
+        path = self.get_options_path()
+        try:
+            # Ensure the directory exists just in case
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(self.options, f, indent=4)
+        except IOError as e:
+            print(f"[Config] Failed to save options: {e}")
+            
         self.apply_volume()
 
     def apply_volume(self):
-        """Applies the volume to pygame mixer based on options."""
+        """Applies the volume to pygame mixer based on current state."""
         vol = 0.0 if self.options.get("is_muted", False) else self.options.get("master_volume", 0.5)
-        pygame.mixer.music.set_volume(vol)
-        # Note: If you load SFX globally, you can also set their volumes here.
-        # e.g., retro_woosh_sfx.set_volume(vol)
+        if pygame.mixer.get_init():
+            pygame.mixer.music.set_volume(vol)
 
     def _get_default_options(self):
         # Priority given to debug_api_key as repo default

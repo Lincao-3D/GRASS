@@ -33,6 +33,7 @@ class Options(Scene):
 
         # 3. Scenario Assistant (TODO 2)
         elements.append(Button(
+            image=None,
             text=SimpleText("Cenário/Mundo Assistant", 18, (0, 0), (255, 215, 0)),
             background_color=(50, 50, 50),
             position=(screen_w // 2 - 150, 300),
@@ -41,6 +42,7 @@ class Options(Scene):
 
         # 4. Save & Return
         elements.append(Button(
+            image=None,
             text=SimpleText("Save & Return", 24, (0, 0), (255, 255, 255)),
             position=(screen_w // 2 - 100, 450),
             click_function=self._return_to_main

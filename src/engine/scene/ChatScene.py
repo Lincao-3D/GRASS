@@ -52,6 +52,7 @@ class ChatScene(Scene):
         )
 
         self.submit_button = Button(
+            image=None,
             position=(screen.get_width() - 200, screen.get_height() - 50),
             text=SimpleText("Submit!", 24, (0, 0), (0, 0, 0)),
             background_color=(255, 255, 255),
@@ -60,6 +61,7 @@ class ChatScene(Scene):
         )
 
         self.combat_button = Button(
+            image=None,
             position=(get_center_x(screen, get_default_font(24).size("Enter Combat!")[0]), screen.get_height() - 50),
             text=SimpleText("Enter Combat!", 24, (0, 0), (0, 0, 0)),
             background_color=(255, 255, 255),
@@ -70,9 +72,10 @@ class ChatScene(Scene):
 
         # Local variable for btn_save as requested (it is captured by build_scene)
         btn_save = Button(
+            image=None,
             text=SimpleText("Save Game", 18, (0, 0), (255, 255, 255)),
             background_color=(50, 50, 150),
-            position=(screen.get_width() - 140, 20),
+            position=(screen.get_width() - 280, 20),
             click_function=self._save_game
         )
 

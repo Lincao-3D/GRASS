@@ -68,22 +68,23 @@ def grid_position(
     return x, y
 
 def apply_volume():
+    # Dynamically find the path to src/options.json based on utils.py's location
+    current_dir = os.path.dirname(__file__)
+    options_path = os.path.join(current_dir, "options.json")
+    
     try:
-        with open("options.json", "r") as f:
+        with open(options_path, "r") as f:
             opts = json.load(f)
 
         vol = 0.0 if opts.get("is_muted", False) else opts.get("master_volume", 0.5)
 
         if pygame.mixer.get_init():
-
             pygame.mixer.music.set_volume(vol)
-
-            for i in range(pygame.mixer.get_num_channels()):
-                ch = pygame.mixer.Channel(i)
-                ch.set_volume(vol)
-
+            
     except FileNotFoundError:
-        pass
+        print(f"[Audio] No options file found at {options_path}. Using defaults.")
+    except json.decoder.JSONDecodeError as e:
+        print(f"[Audio] Broken JSON in {options_path}. Ignoring: {e}")
 
 def typewriter_sound():
     SAMPLE_RATE = 44100
