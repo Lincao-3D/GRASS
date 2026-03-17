@@ -43,7 +43,8 @@ class Options(Scene):
         elements.append(Toggle(
             position=(screen_w // 2 + 50, 210), 
             value=current_mute,
-            on_toggle=self._on_mute_change
+            on_toggle=self._on_mute_change,
+            tooltip_text="Verde = som habilitado, Vermelho = som desabilitado"
         ))
 
         # 3. Scenario Assistant 
@@ -61,7 +62,8 @@ class Options(Scene):
             image=None,
             text=SimpleText("Save & Return", 24, (0, 0), (255, 255, 255)),
             position=(screen_w // 2 - 100, 450),
-            click_function=self._return_to_main
+            click_function=self._return_to_main,
+            tooltip_text="Salva quaisquer alterações e retorna para o menu principal"
         ))
 
         return elements
