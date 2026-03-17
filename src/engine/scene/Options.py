@@ -1,13 +1,28 @@
+from typing import List, TYPE_CHECKING
+import pygame #
+
 from src.engine.scene.Scene import Scene
+from src.engine.scene.SceneElement import SceneElement #
 from src.engine.ui.Button import Button
 from src.engine.ui.SimpleText import SimpleText
 from src.engine.ui.Slider import Slider  
 from src.engine.ui.Toggle import Toggle  
+from src.utils import get_center_x # 
+
+# CIRCULAR IMPORT FIX
+if TYPE_CHECKING:
+    from src.engine.Game import Game
 
 class Options(Scene):
-    def build_scene(self, game: "Game"):
+    def build_scene(self, game: "Game") -> List[SceneElement]:
+        # THE INITIALIZATION FIX: Must be the absolute first line!
         self.game = game
+        
         screen_w = self.screen.get_width()
+        
+        # Now it is safe to read from self.game.options
+        current_vol = self.game.options.get("master_volume", 0.5)
+        current_mute = self.game.options.get("is_muted", False)
         
         elements = [
             SimpleText("Options", 48, (screen_w // 2 - 100, 50))
@@ -19,7 +34,7 @@ class Options(Scene):
             position=(screen_w // 2 - 150, 150),
             width=300, 
             min_value=0.0, max_value=1.0,
-            start_value=self.game.options.get("master_volume", 0.5),
+            start_value=current_vol,
             on_change=self._on_volume_change
         ))
 
@@ -27,17 +42,18 @@ class Options(Scene):
         elements.append(SimpleText("Mute Audio", 20, (screen_w // 2 - 150, 210)))
         elements.append(Toggle(
             position=(screen_w // 2 + 50, 210), 
-            value=self.game.options.get("is_muted", False),
+            value=current_mute,
             on_toggle=self._on_mute_change
         ))
 
-        # 3. Scenario Assistant (TODO 2)
+        # 3. Scenario Assistant 
         elements.append(Button(
             image=None,
-            text=SimpleText("Cenário/Mundo Assistant", 18, (0, 0), (255, 215, 0)),
+            text=SimpleText("Assistente de mudança de Cenário/Mundo/Crônica", 12, (0, 0), (255, 215, 0)),
             background_color=(50, 50, 50),
             position=(screen_w // 2 - 150, 300),
-            click_function=self._open_scenario_assistant
+            click_function=self._open_scenario_assistant,
+            tooltip_text="Facilita a alteração do cenário/mundo - ou mude completamente o tipo de RPG"
         ))
 
         # 4. Save & Return
