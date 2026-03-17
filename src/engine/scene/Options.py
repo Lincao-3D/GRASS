@@ -68,20 +68,22 @@ class Options(Scene):
 
         return elements
 
-    def _on_volume_change(self, value):
+    def _on_volume_change(self, value: float):  # Add type hint
+        """Called repeatedly as the slider is dragged."""
         self.game.options["master_volume"] = value
-        from src.utils import apply_volume
-        apply_volume()
+        self.game.apply_volume()  # Use Game method instead of utils import
 
-    def _on_mute_change(self, is_muted):
+    def _on_mute_change(self, is_muted: bool):  # Add type hint  
+        """Called when the toggle is clicked."""
         self.game.options["is_muted"] = is_muted
-        from src.utils import apply_volume
-        apply_volume()
+        self.game.apply_volume()  # Use Game method instead of utils import
 
     def _return_to_main(self):
-        self.game.save_options()
+        """Saves to JSON and returns to the menu."""
+        self.game.save_options()  # Already perfect
         from src.engine.scene.MainMenu import MainMenu
         self.game.change_scene(MainMenu(None, self.screen, self.game))
+
 
     def _open_scenario_assistant(self):
         from src.engine.scene.ScenarioAssistant import ScenarioAssistant
