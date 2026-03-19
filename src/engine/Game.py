@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 from src.engine.ai.chat import Chat
 from src.engine.scene.MainMenu import MainMenu
 from src.utils import apply_volume
+from src.utils import apply_global_volume
 
 class Game:
     def __init__(self, scenario, start_player=None):
@@ -31,6 +32,9 @@ class Game:
             "gpt_model": "gemini-1.5-flash"
         }
         self.load_options() # This will overwrite defaults if JSON is valid
+        # 🔥 ADD THIS LINE - Load SFX before apply_volume()
+        from src.utils import load_sfx
+        load_sfx()
 
         # 3. Chat System Initialization
         api_key = self.options.get("api_key")
@@ -73,10 +77,9 @@ class Game:
         self.apply_volume()
 
     def apply_volume(self):
-        """Applies the volume to pygame mixer based on current state."""
+        """Calculates current volume and dispatches it to utils."""
         vol = 0.0 if self.options.get("is_muted", False) else self.options.get("master_volume", 0.5)
-        if pygame.mixer.get_init():
-            pygame.mixer.music.set_volume(vol)
+        apply_global_volume(vol) # <--- onto all SFX and sounds
 
     def _get_default_options(self):
         # Priority given to debug_api_key as repo default

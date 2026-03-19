@@ -5,12 +5,30 @@ from typing import AnyStr
 
 import numpy as np
 import pygame
-
 import json
 
 from src.constants import DEBUG
 
+# --- Global SFX Variables (loaded once at startup) ---
+button_hover_sound = None
+button_click_sound = None
 
+def load_sfx():
+    """Load all SFX files once at startup."""
+    global button_hover_sound, button_click_sound
+    
+    pygame.mixer.init()
+    
+    sfx_path = os.path.join(get_assets_path(), "sfx")
+    
+    try:
+        button_hover_sound = pygame.mixer.Sound(os.path.join(sfx_path, "button_hover.mp3"))
+        button_click_sound = pygame.mixer.Sound(os.path.join(sfx_path, "button_click.mp3"))
+        print("[Audio] SFX loaded successfully")
+    except Exception as e:
+        print(f"[Audio] SFX loading warning: {e}")
+        button_hover_sound = None
+        button_click_sound = None
 
 def get_assets_path() -> AnyStr:
     # PyInstaller
@@ -67,24 +85,53 @@ def grid_position(
 
     return x, y
 
+def apply_global_volume(vol: float):
+    """Applies the volume setting to BOTH music and all loaded SFX."""
+    if not pygame.mixer.get_init():
+        return
+
+    # 1. Update background music track
+    pygame.mixer.music.set_volume(vol)
+    
+    # 2. Update ONLY loaded Sound objects (not functions!)
+    global_sounds = [
+        button_hover_sound,
+        button_click_sound,
+    ]
+    
+    for sound in global_sounds:
+        if sound is not None and hasattr(sound, 'set_volume'):
+            sound.set_volume(vol)
+
 def apply_volume():
+    """Legacy function - now uses improved apply_global_volume."""
     # Dynamically find the path to src/options.json based on utils.py's location
     current_dir = os.path.dirname(__file__)
-    options_path = os.path.join(current_dir, "options.json")
+    options_path = os.path.join(current_dir, "..", "options.json")
     
     try:
         with open(options_path, "r") as f:
             opts = json.load(f)
 
         vol = 0.0 if opts.get("is_muted", False) else opts.get("master_volume", 0.5)
-
-        if pygame.mixer.get_init():
-            pygame.mixer.music.set_volume(vol)
-            
+        apply_global_volume(vol)
+        
     except FileNotFoundError:
         print(f"[Audio] No options file found at {options_path}. Using defaults.")
+        apply_global_volume(0.5)
     except json.decoder.JSONDecodeError as e:
         print(f"[Audio] Broken JSON in {options_path}. Ignoring: {e}")
+        apply_global_volume(0.5)
+
+def play_button_hover():
+    """Play button hover sound."""
+    if button_hover_sound:
+        button_hover_sound.play()
+
+def play_button_click():
+    """Play button click sound."""
+    if button_click_sound:
+        button_click_sound.play()
 
 def typewriter_sound():
     SAMPLE_RATE = 44100
@@ -132,9 +179,6 @@ def play_retro_woosh(duration=0.2, rising=True):
     
     pygame.sndarray.make_sound(sound_stereo).play()
 
-# Exemplo de uso para o dado:
-# play_retro_woosh(duration=0.15, rising=True)
-
-
 if __name__ == "__main__":
     print(get_assets_path())
+    load_sfx()  # Test SFX loading

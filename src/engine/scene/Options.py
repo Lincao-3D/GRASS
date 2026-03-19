@@ -39,12 +39,11 @@ class Options(Scene):
         ))
 
         # 2. Mute Toggle
-        elements.append(SimpleText("Mute Audio", 20, (screen_w // 2 - 150, 210)))
+        elements.append(SimpleText("Mutar Áudio", 20, (screen_w // 2 - 150, 210)))
         elements.append(Toggle(
             position=(screen_w // 2 + 50, 210), 
             value=current_mute,
             on_toggle=self._on_mute_change,
-            tooltip_text="Verde = som habilitado, Vermelho = som desabilitado"
         ))
 
         # 3. Scenario Assistant 
