@@ -1,7 +1,7 @@
 import pygame
 from src.engine.ui.UIElement import UIElement
 from src.engine.ui.SimpleText import SimpleText
-from src.utils import retro_woosh
+from src.utils import play_retro_woosh
 
 class HorizontalBar(UIElement):
     def __init__(self, screen_w, screen_h, text, hold_duration_ms=2000):
@@ -27,14 +27,14 @@ class HorizontalBar(UIElement):
         self.is_done = False # Mark True to let Scene remove it
 
         # Optional: 
-        pygame.mixer.Sound('assets/sfx/retro_woosh.wav').play()
+        # pygame.mixer.Sound('assets/sfx/play_retro_woosh.wav').play()
 
     def update(self, event=None, mouse_pos=None):
         if self.state == "ENTER":
             if not self.played_sound:
-                retro_woosh()  # Play sound immediately
+                play_retro_woosh  # Play sound immediately
                 self.played_sound = True
-                
+
             self.x -= self.speed
             if self.x <= 0:
                 self.x = 0

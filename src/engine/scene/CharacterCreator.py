@@ -144,6 +144,12 @@ class CharacterCreator(Scene):
             if pygame.time.get_ticks() - self.roll_start_time > 1500:
                 self.roll_animation_active = False
 
+        # STUB: Horizontal Bars & Dice Triggering
+        # We check whatever list holds your UI (ui_elements, elements, etc.)
+        # If you don't have a list yet, initialize self.ui_elements = [] in __init__
+        """ for element in getattr(self, 'ui_elements', []): 
+            if isinstance(element, HorizontalBar):
+                element.update() """
         # 2. Cinematic Stripes Logic
         # If you have a list or queue of active_bars:
         for bar in self.active_bars:
