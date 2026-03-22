@@ -5,6 +5,8 @@ import pygame
 from typing import List, TYPE_CHECKING, Optional
 # Dice roll import
 from src.engine.ui.DiceRollAnimation import DiceRollAnimation
+# Horizontal bar import
+from src.engine.ui.HorizontalBar import HorizontalBar
 
 from src.constants import START_SKILLS
 from src.engine.scene.ChatScene import ChatScene
@@ -91,6 +93,29 @@ class CharacterCreator(Scene):
         self._update_attrib_checklist()
         self._start_dice_animation()
 
+        # --- CINEMATIC SEQUENCE SETUP ---
+        sw, sh = self.screen.get_width(), self.screen.get_height()
+        
+        # Create the stripe objects
+        stripe1 = HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400)
+        stripe2 = HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500)
+        
+        # Format the dice result string
+        result_str = ", ".join(map(str, self.rolled_atribs))
+        stripe3 = HorizontalBar(sw, sh, f"Resultados: {result_str}", hold_duration_ms=800)
+        
+        # Add to an animation queue
+        self.animation_queue = [stripe1, stripe2, stripe3]
+        self.current_stripe = None
+        self._next_stripe()
+
+    def _next_stripe(self):
+        """Pops the next cinematic stripe onto the screen."""
+        if self.animation_queue:
+            self.current_stripe = self.animation_queue.pop(0)
+            self.elements.append(self.current_stripe)
+        else:
+            self.current_stripe = None
 
     def _start_dice_animation(self):
         # Clear any existing dice animation
@@ -113,14 +138,18 @@ class CharacterCreator(Scene):
 
 
     def update(self):
-        # Dice animation logic FIRST
+        # 1. Dice animation logic (High priority visual)
         if self.roll_animation_active and hasattr(self, 'dice_animation'):
-            self.dice_animation.update(None, None)  # No event/mouse needed for dice
-            
+            self.dice_animation.update(None, None)
             if pygame.time.get_ticks() - self.roll_start_time > 1500:
                 self.roll_animation_active = False
-                # DiceRollAnimation handles its own stopping - no need to remove here
-        # Call parent update
+
+        # 2. Cinematic Stripes Logic
+        # If you have a list or queue of active_bars:
+        for bar in self.active_bars:
+            bar.update()
+
+        # 3. Call parent update (Standard UI buttons, etc.)
         super().update()
 
     def _reroll(self):

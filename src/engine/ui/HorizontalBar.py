@@ -1,6 +1,7 @@
 import pygame
 from src.engine.ui.UIElement import UIElement
 from src.engine.ui.SimpleText import SimpleText
+from src.utils import retro_woosh
 
 class HorizontalBar(UIElement):
     def __init__(self, screen_w, screen_h, text, hold_duration_ms=2000):
@@ -13,6 +14,9 @@ class HorizontalBar(UIElement):
         
         self.text_elem = SimpleText(text, 28, (0, 0), (255, 255, 255))
         
+        # Sound playing logic
+        self.played_sound = False
+
         # State Machine: ENTER -> HOLD -> EXIT -> DONE
         self.state = "ENTER"
         self.hold_duration = hold_duration_ms
@@ -27,6 +31,10 @@ class HorizontalBar(UIElement):
 
     def update(self, event=None, mouse_pos=None):
         if self.state == "ENTER":
+            if not self.played_sound:
+                retro_woosh()  # Play sound immediately
+                self.played_sound = True
+                
             self.x -= self.speed
             if self.x <= 0:
                 self.x = 0

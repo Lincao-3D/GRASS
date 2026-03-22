@@ -5,15 +5,19 @@ import pygame
 from typing import Optional, Dict, Any
 from src.engine.ai.chat import Chat
 from src.engine.scene.MainMenu import MainMenu
-from src.utils import apply_volume
-from src.utils import apply_global_volume
+
+# Import the corrected functions
+from src.utils import apply_global_volume, load_sfx
 
 class Game:
     def __init__(self, scenario, start_player=None):
         # 1. Core Pygame Setup
         self.screen = pygame.display.set_mode((800, 600), pygame.FULLSCREEN)
         pygame.display.set_caption("GRASS RPG")
-        pygame.mixer.init()
+        
+        # Initialize mixer before loading sounds
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
         
         # 2. State & Options Initialization
         self.scene = None
@@ -24,17 +28,22 @@ class Game:
         self.player = start_player
         self.save_path = "saves/current_adventure.dat"
         
-        # Initialize options with hard defaults, then try to load from file
+        # Initialize options with hard defaults
         self.options = {
             "master_volume": 0.5, 
             "is_muted": False,
             "api_key": os.environ.get("debug_api_key", ""),
             "gpt_model": "gemini-1.5-flash"
         }
-        self.load_options() # This will overwrite defaults if JSON is valid
-        # 🔥 ADD THIS LINE - Load SFX before apply_volume()
-        from src.utils import load_sfx
+        
+        # Load options from disk (overwrites defaults)
+        self.load_options() 
+
+        # 🔥 Load SFX first so they exist when volume is applied
         load_sfx()
+        
+        # Apply the loaded volume settings immediately
+        self.apply_volume()
 
         # 3. Chat System Initialization
         api_key = self.options.get("api_key")
@@ -77,9 +86,12 @@ class Game:
         self.apply_volume()
 
     def apply_volume(self):
-        """Calculates current volume and dispatches it to utils."""
-        vol = 0.0 if self.options.get("is_muted", False) else self.options.get("master_volume", 0.5)
-        apply_global_volume(vol) # <--- onto all SFX and sounds
+        """Dispatches the current state of options to the global audio controller."""
+        vol = self.options.get("master_volume", 0.5)
+        muted = self.options.get("is_muted", False)
+        
+        # Pass both arguments to utils.py's apply_global_volume
+        apply_global_volume(vol, muted)
 
     def _get_default_options(self):
         # Priority given to debug_api_key as repo default
