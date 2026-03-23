@@ -29,19 +29,21 @@ class Toggle(UIElement):
                     self.on_change(self.is_on)
 
     def draw(self, screen):
-        # 1. Background Track
+        # Track color: green = Mute ON (is_on=True), gray = Sound active (is_on=False)
         track_color = (46, 204, 113) if self.is_on else (100, 100, 100)
         pygame.draw.rect(screen, track_color, self.rect, border_radius=self.height // 2)
 
-        # 2. Text Indicators
+        # Label: "ON" = Mute Active (green), "OFF" = Sound Active (gray)
         if self.is_on:
-            text_on = SimpleText("ON", self.font_size, (self.x + 8, self.y + (self.height // 4)), (255, 255, 255))
-            text_on.render(screen)
+            # Mute is active — show "ON" on the left side of the (right-positioned) handle
+            label = SimpleText("ON", self.font_size, (self.x + 6, self.y + (self.height // 4)), (255, 255, 255))
+            label.render(screen)
         else:
-            text_off = SimpleText("OFF", self.font_size, (self.x + self.width - 32, self.y + (self.height // 4)), (255, 255, 255))
-            text_off.render(screen)
+            # Sound is active — show "OFF" on the right side of the (left-positioned) handle
+            label = SimpleText("OFF", self.font_size, (self.x + self.width - 34, self.y + (self.height // 4)), (255, 255, 255))
+            label.render(screen)
 
-        # 3. Handle
+        # Handle (circle/pill)
         handle_x = self.x + self.width - self.height + 2 if self.is_on else self.x + 2
         handle_rect = pygame.Rect(handle_x, self.y + 2, self.height - 4, self.height - 4)
         pygame.draw.ellipse(screen, (255, 255, 255), handle_rect)

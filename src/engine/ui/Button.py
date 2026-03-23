@@ -5,7 +5,7 @@ import pygame
 from src.engine.ui.ImageTransformStrategy import ImageTransformStrategy
 from src.engine.ui.SimpleText import SimpleText
 from src.engine.ui.UIElement import UIElement
-from src.utils import get_assets_path
+from src.utils import get_assets_path, play_button_hover, play_button_click
 
 class Button(UIElement):
     def __init__(self, image: Optional[pygame.Surface], position: Tuple[int, int],
@@ -16,8 +16,8 @@ class Button(UIElement):
                  click_transform_strategy: Optional[ImageTransformStrategy] = None,
                  background_color: Optional[Tuple[int, int, int]] = None,
                  padding=(24, 12),
-                 hover_sound="button_hover.mp3",
-                 click_sound="button_click.mp3",
+                 hover_sound=True,
+                 click_sound=True,
                  tooltip_text: Optional[str] = None):  # NEW: Tooltip parameter
         
         super().__init__(None, position)
@@ -39,10 +39,10 @@ class Button(UIElement):
         self.show_tooltip = False
         self.tooltip_font = pygame.font.Font(None, 24)
         
-        if click_sound is not None:
-            self.click_sound = pygame.mixer.Sound(os.path.join(get_assets_path(), "sfx", click_sound))
-        if hover_sound is not None:
-            self.hover_sound = pygame.mixer.Sound(os.path.join(get_assets_path(), "sfx", hover_sound))
+        # Sounds are played via the shared globals in utils.py so that
+        # apply_global_volume() / mute state always applies correctly.
+        self.click_sound = click_sound  # True/False sentinel
+        self.hover_sound = hover_sound  # True/False sentinel
         
         self.original_image = self.image.copy()
         self.hover_image = (
@@ -106,7 +106,7 @@ class Button(UIElement):
         if self.enabled:
             self.set_image(self.click_image)
             if self.click_sound:
-                self.click_sound.play()
+                play_button_click()  # Uses shared global — respects mute/volume
             if self.click_function:
                 self.click_function()
         else:
@@ -116,7 +116,7 @@ class Button(UIElement):
         if self.enabled:
             self.set_image(self.hover_image)
             if self.hover_sound:
-                self.hover_sound.play()
+                play_button_hover()  # Uses shared global — respects mute/volume
             if self.hover_function:
                 self.hover_function()
         else:
