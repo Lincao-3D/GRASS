@@ -29,12 +29,12 @@ if TYPE_CHECKING:
 
 class CharacterCreator(Scene):
     def __init__(self, background, screen, game: "Game"):
-        # Basic state FIRST
-        self.selected_race = None
-        self.selected_class = None
-        self.rolled_atribs = roll_attribs()
-        while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
-            self.rolled_atribs = roll_attribs()
+        # 1. INITIALIZE LISTS FIRST so update() doesn't crash
+        self.active_bars = []
+        self.stripe_queue = []
+        self.dice_rolled = False # To prevent showing UI before stripes finish
+
+        
         self.avaliable_skills: List[SkillEnum] = []
         self.skill_len = 0  # Will be set after class selection
         self.selected_skills = []
@@ -47,8 +47,7 @@ class CharacterCreator(Scene):
         self.dice_animation = None
         self.roll_animation_active = False
         self.roll_start_time = 0
-        self.dice_assignments = {} # {column_index: (Attribute, Value)}
-        self.selected_attribs = {} # Final valid mapping
+        
         # CREATE ALL UI ELEMENTS BEFORE super()
         self.skills_radio_button = RadioButtonGroup(
             label_str="Select skills after class",
@@ -78,8 +77,20 @@ class CharacterCreator(Scene):
 
         # NOW super() calls build_scene() - all elements exist
         super().__init__(background, screen, game)
+        # Basic state FIRST
+        self.game = game
+        self.selected_race = None
+        self.selected_class = None
         self.selected_attribs = {}
         
+        # 2. Setup Dice logic | moved to sit after super()
+        self.rolled_atribs = roll_attribs()
+        while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
+            self.rolled_atribs = roll_attribs()
+        
+        self.dice_assignments = {} # {column_index: (Attribute, Value)}
+        self.selected_attribs = {} # Final valid mapping
+
         # REPLACE checklist with correct position
         self.attrib_checklist = SimpleText(
             text="Attributes: Select to check", 
@@ -94,28 +105,30 @@ class CharacterCreator(Scene):
         self._start_dice_animation()
 
         # --- CINEMATIC SEQUENCE SETUP ---
-        sw, sh = self.screen.get_width(), self.screen.get_height()
+        sw, sh = screen.get_width(), screen.get_height()
         
-        # Create the stripe objects
-        stripe1 = HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400)
-        stripe2 = HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500)
+        self.stripe_queue = [
+            HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
+            HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500),
+            HorizontalBar(sw, sh, f"Resultados: {', '.join(map(str, self.rolled_atribs))}", hold_duration_ms=800)
+        ]
         
-        # Format the dice result string
-        result_str = ", ".join(map(str, self.rolled_atribs))
-        stripe3 = HorizontalBar(sw, sh, f"Resultados: {result_str}", hold_duration_ms=800)
-        
-        # Add to an animation queue
-        self.animation_queue = [stripe1, stripe2, stripe3]
-        self.current_stripe = None
+        # Push the first stripe to the active list
         self._next_stripe()
 
+        # Build initial UI (but maybe hide dice elements until rolled? Up to you)
+        self._update_attrib_checklist()
+
     def _next_stripe(self):
-        """Pops the next cinematic stripe onto the screen."""
-        if self.animation_queue:
-            self.current_stripe = self.animation_queue.pop(0)
-            self.elements.append(self.current_stripe)
+        if self.stripe_queue:
+            next_bar = self.stripe_queue.pop(0)
+            self.active_bars.append(next_bar)
+            self.elements.append(next_bar)
+            # Make sure it plays the woosh!
+            from src.utils import play_retro_woosh
+            play_retro_woosh()
         else:
-            self.current_stripe = None
+            self.dice_rolled = True # Sequence finished!
 
     def _start_dice_animation(self):
         # Clear any existing dice animation
@@ -137,26 +150,16 @@ class CharacterCreator(Scene):
         self.roll_start_time = pygame.time.get_ticks()
 
 
-    def update(self):
-        # 1. Dice animation logic (High priority visual)
-        if self.roll_animation_active and hasattr(self, 'dice_animation'):
-            self.dice_animation.update(None, None)
-            if pygame.time.get_ticks() - self.roll_start_time > 1500:
-                self.roll_animation_active = False
-
-        # STUB: Horizontal Bars & Dice Triggering
-        # We check whatever list holds your UI (ui_elements, elements, etc.)
-        # If you don't have a list yet, initialize self.ui_elements = [] in __init__
-        """ for element in getattr(self, 'ui_elements', []): 
-            if isinstance(element, HorizontalBar):
-                element.update() """
-        # 2. Cinematic Stripes Logic
-        # If you have a list or queue of active_bars:
-        for bar in self.active_bars:
-            bar.update()
-
-        # 3. Call parent update (Standard UI buttons, etc.)
-        super().update()
+    def update(self, event=None, mouse_pos=None):
+        super().update(event, mouse_pos)
+        
+        # Safely loop through active_bars
+        for bar in self.active_bars[:]: # Use slice [:] to safely remove while iterating
+            if getattr(bar, 'is_done', False):
+                self.active_bars.remove(bar)
+                if bar in self.elements:
+                    self.elements.remove(bar)
+                self._next_stripe() # Trigger the next one when this one finishes!
 
     def _reroll(self):
         if self.re_rolls <= 0:

@@ -33,6 +33,19 @@ def get_assets_path() -> AnyStr:
 
     return os.path.join(project_root, "assets")
 
+def get_current_volume():
+    """Helper to dynamically fetch the exact volume from JSON right now."""
+    try:
+        # Guarantee we look at src/options.json
+        opts_path = os.path.join(os.path.dirname(__file__), "options.json")
+        with open(opts_path, "r") as f:
+            opts = json.load(f)
+        if opts.get("is_muted", False):
+            return 0.0
+        return opts.get("master_volume", 0.5)
+    except Exception:
+        return 0.5 # Safe fallback
+
 def load_sfx():
     """Load all SFX files once at startup and initialize volume."""
     global button_hover_sound, button_click_sound
@@ -52,15 +65,24 @@ def load_sfx():
         button_click_sound = None
 
     # Load volume from disk immediately after loading sounds
-    apply_volume()
+    apply_global_volume()
 
-def apply_global_volume(vol: float, is_muted: bool):
+def apply_global_volume(vol_override=None, is_muted_override=None):
     """Updates the global audio state and applies it to music and loaded SFX objects."""
     global MASTER_VOLUME, IS_MUTED
-    MASTER_VOLUME = vol
-    IS_MUTED = is_muted
     
-    actual_vol = 0.0 if IS_MUTED else MASTER_VOLUME
+    if vol_override is not None:
+        MASTER_VOLUME = vol_override
+    if is_muted_override is not None:
+        IS_MUTED = is_muted_override
+
+    # If no override, we might want to sync with disk, but for now let's use the provided logic:
+    # "Note: Ensure Game.py and Options.py call apply_global_volume() without arguments when the slider changes, since get_current_volume now pulls the fresh JSON data automatically"
+    
+    if vol_override is None and is_muted_override is None:
+        actual_vol = get_current_volume()
+    else:
+        actual_vol = 0.0 if IS_MUTED else MASTER_VOLUME
 
     if not pygame.mixer.get_init():
         return
@@ -74,22 +96,7 @@ def apply_global_volume(vol: float, is_muted: bool):
 
 def apply_volume():
     """Reads settings from options.json and triggers apply_global_volume."""
-    current_dir = os.path.dirname(__file__)
-    options_path = os.path.join(current_dir, "..", "options.json")
-    
-    try:
-        if os.path.exists(options_path):
-            with open(options_path, "r") as f:
-                opts = json.load(f)
-            vol = opts.get("master_volume", 0.5)
-            muted = opts.get("is_muted", False)
-            apply_global_volume(vol, muted)
-        else:
-            apply_global_volume(0.5, False)
-            
-    except Exception as e:
-        print(f"[Audio] Error loading options: {e}")
-        apply_global_volume(0.5, False)
+    apply_global_volume()
 
 # --- Sound Triggers ---
 
@@ -105,8 +112,8 @@ def play_button_click():
 
 def typewriter_sound():
     """Generates a typewriter tick, scaled by master volume."""
-    actual_vol = 0.0 if IS_MUTED else MASTER_VOLUME
-    if actual_vol == 0.0 or not pygame.mixer.get_init():
+    vol = get_current_volume()
+    if vol <= 0.0 or not pygame.mixer.get_init():
         return
 
     SAMPLE_RATE = 44100
@@ -115,27 +122,26 @@ def typewriter_sound():
     samples = int(SAMPLE_RATE * duration)
 
     # Generate noise and scale by volumes before int conversion
-    # Resulting wave is float64 in range [-1.0, 1.0] * volume
     noise = np.random.uniform(-1, 1, samples)
     envelope = np.linspace(1, 0, samples)
-    wave = noise * envelope * TYPE_INTERNAL_VOL * actual_vol
+    wave = noise * envelope * TYPE_INTERNAL_VOL * vol
     
     # Convert to 16-bit integers for Pygame
     sound_array = (wave * 32767).astype(np.int16)
     sound_stereo = np.column_stack((sound_array, sound_array))
     
     sound = pygame.sndarray.make_sound(sound_stereo)
-    sound.set_volume(actual_vol) # Double safety scaling
+    sound.set_volume(vol) # Double safety scaling
     sound.play()
 
 def play_retro_woosh(duration=0.3, rising=True):
     """Generates a retro woosh sweep, scaled by master volume."""
-    actual_vol = 0.0 if IS_MUTED else MASTER_VOLUME
-    if actual_vol == 0.0 or not pygame.mixer.get_init():
+    vol = get_current_volume()
+    if vol <= 0.0 or not pygame.mixer.get_init():
         return
 
     SAMPLE_RATE = 44100
-    WOOSH_INTERNAL_VOL = 0.3 
+    WOOSH_INTERNAL_VOL = 0.3
     samples = int(SAMPLE_RATE * duration)
     
     f_start, f_end = (100, 1000) if rising else (1000, 100)
@@ -147,14 +153,14 @@ def play_retro_woosh(duration=0.3, rising=True):
     noise = np.random.uniform(-0.2, 0.2, samples)
     
     # Scale by master volume here
-    combined = (wave + noise) * WOOSH_INTERNAL_VOL * actual_vol
+    combined = (wave + noise) * WOOSH_INTERNAL_VOL * vol
     envelope = np.sin(np.pi * np.arange(samples) / samples)
 
     sound_array = (combined * envelope * 32767).astype(np.int16)
     sound_stereo = np.column_stack((sound_array, sound_array))
     
     sound = pygame.sndarray.make_sound(sound_stereo)
-    sound.set_volume(actual_vol)
+    sound.set_volume(vol)
     sound.play()
 
 # --- Utility Graphics/System Helpers ---

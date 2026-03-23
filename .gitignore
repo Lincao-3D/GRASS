@@ -209,3 +209,4 @@ __marimo__/
 # Token optmization context tools
 context_builder.py
 grass_context_minified.*
+.idea
