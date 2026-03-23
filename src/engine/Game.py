@@ -86,12 +86,10 @@ class Game:
         self.apply_volume()
 
     def apply_volume(self):
-        """Dispatches the current state of options to the global audio controller."""
-        vol = self.options.get("master_volume", 0.5)
-        muted = self.options.get("is_muted", False)
-        
-        # Pass both arguments to utils.py's apply_global_volume
-        apply_global_volume(vol, muted)
+        """Dispatches the volume update command to utils without arguments."""
+        # It relies entirely on the JSON file logic we just wrote
+        from src.utils import apply_global_volume
+        apply_global_volume()
 
     def _get_default_options(self):
         # Priority given to debug_api_key as repo default

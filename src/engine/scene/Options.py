@@ -1,17 +1,18 @@
 from typing import List, TYPE_CHECKING
-import pygame #
+import pygame
 
 from src.engine.scene.Scene import Scene
-from src.engine.scene.SceneElement import SceneElement #
+from src.engine.scene.SceneElement import SceneElement
 from src.engine.ui.Button import Button
 from src.engine.ui.SimpleText import SimpleText
 from src.engine.ui.Slider import Slider  
 from src.engine.ui.Toggle import Toggle  
-from src.utils import get_center_x # 
+from src.utils import get_center_x
 
 # CIRCULAR IMPORT FIX
 if TYPE_CHECKING:
     from src.engine.Game import Game
+
 
 class Options(Scene):
     def build_scene(self, game: "Game") -> List[SceneElement]:
@@ -41,9 +42,10 @@ class Options(Scene):
         # 2. Mute Toggle
         elements.append(SimpleText("Mutar Áudio", 20, (screen_w // 2 - 150, 210)))
         elements.append(Toggle(
-            position=(screen_w // 2 + 50, 210), 
-            value=current_mute,
-            on_toggle=self._on_mute_change,
+            x= screen_w // 2 + 89,
+            y= 210, 
+            is_on=current_mute,
+            on_change=self._on_mute_change,
         ))
 
         # 3. Scenario Assistant 
@@ -67,22 +69,20 @@ class Options(Scene):
 
         return elements
 
-    def _on_volume_change(self, value: float):  # Add type hint
+    def _on_volume_change(self, value: float):
         """Called repeatedly as the slider is dragged."""
         self.game.options["master_volume"] = value
-        self.game.apply_volume()  # Use Game method instead of utils import
+        # FORCE JSON SAVE so procedural sounds and apply_global_volume catch it!
+        self.game.save_options() 
 
-    def _on_mute_change(self, is_muted: bool):  # Add type hint  
+    def _on_mute_change(self, is_muted: bool):
         """Called when the toggle is clicked."""
         self.game.options["is_muted"] = is_muted
-        self.game.apply_volume()  # Use Game method instead of utils import
+        self.game.save_options()
 
     def _return_to_main(self):
-        """Saves to JSON and returns to the menu."""
-        self.game.save_options()  # Already perfect
         from src.engine.scene.MainMenu import MainMenu
         self.game.change_scene(MainMenu(None, self.screen, self.game))
-
 
     def _open_scenario_assistant(self):
         from src.engine.scene.ScenarioAssistant import ScenarioAssistant
