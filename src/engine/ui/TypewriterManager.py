@@ -31,16 +31,26 @@ class TypewriterManager:
     # Simple pixel-based width check using font size approximation
         return len(self.current_typing_text) * (self.font_size // 2) > self.width
 
-    def update(self):
+    def update(self, fast_forward: bool = False):
         now = pygame.time.get_ticks()
         new_chars = ""  # Track new characters THIS FRAME only
         
-        while self.char_index < len(self.full_text) and (now - self.last_update > self.speed):
+        # When fast-forwarding, we allow the loop to process multiple characters 
+        # per frame. This smoothly skips the frame delay constraint.
+        chars_to_process = 4 if fast_forward else 1
+        processed = 0
+        
+        while self.char_index < len(self.full_text) and processed < chars_to_process:
+            # Check delay constraints only if we aren't fast-forwarding
+            if not fast_forward and (now - self.last_update <= self.speed):
+                break
+                
             char = self.full_text[self.char_index]
             self.current_typing_text += char
             new_chars += char  # Only new chars
             self.char_index += 1
             self.last_update = now
+            processed += 1
             
             # Line wrapping
             if char == '\n' or (char == ' ' and self._needs_wrap()):
@@ -49,6 +59,21 @@ class TypewriterManager:
         
         # 🔥 CORRECT: Always return new_chars (empty string when done)
         return new_chars  # "", "a", "ab", "abc...", never None!
+
+    def reveal_all(self) -> str:
+        """Instantly processes all remaining text in the buffer and returns it."""
+        new_chars = ""
+        while self.char_index < len(self.full_text):
+            char = self.full_text[self.char_index]
+            self.current_typing_text += char
+            new_chars += char
+            self.char_index += 1
+            
+            # Line wrapping
+            if char == '\n' or (char == ' ' and self._needs_wrap()):
+                self.displayed_lines.append(self.current_typing_text.strip())
+                self.current_typing_text = ""
+        return new_chars
 
 
 

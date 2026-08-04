@@ -25,13 +25,18 @@ class MainMenu(Scene):
             )
         ]
 
-        # Check for save file
-        if os.path.exists("save_game.json"):
+        # Check for saves
+        has_save = False
+        if os.path.exists("save_game.json"): has_save = True
+        if os.path.exists("saves") and any(f.endswith(".json") for f in os.listdir("saves")):
+            has_save = True
+
+        if has_save:
             elements.append(Button(
                 image=None,
                 text=SimpleText("Continue", 24, (0, 0), (100, 255, 100)),
                 position=(screen_w // 2 - 100, 320),
-                click_function=self.load_game_scene
+                click_function=self.load_game_selection
             ))
 
         elements.append(Button(
@@ -51,6 +56,10 @@ class MainMenu(Scene):
         # self.game.load_save_file("save_game.json") 
         self.game.load_session("save_game.json") # Check usage
         self.game.change_scene(ChatScene(self.screen, self.game, self.game.scenario))
+
+    def load_game_selection(self):
+        from src.engine.scene.SaveSelectionScene import SaveSelectionScene
+        self.game.change_scene(SaveSelectionScene(None, self.screen, self.game))
 
     def options_scene(self):
         from src.engine.scene.Options import Options

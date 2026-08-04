@@ -29,95 +29,86 @@ if TYPE_CHECKING:
 
 class CharacterCreator(Scene):
     def __init__(self, background, screen, game: "Game"):
-        # 1. INITIALIZE LISTS FIRST so update() doesn't crash
-        self.active_bars = []
-        self.stripe_queue = []
-        self.dice_rolled = False # To prevent showing UI before stripes finish
+            # 1. Initialize core lists, states, and cinematic parameters first
+            self.active_bars = []
+            self.stripe_queue = []
+            self.dice_rolled = False 
 
-        
-        self.avaliable_skills: List[SkillEnum] = []
-        self.skill_len = 0  # Will be set after class selection
-        self.selected_skills = []
-        self.selected_expertises = []
-        self.error: Optional[SimpleText] = None
-        self.selected_name = self._gerar_nome(random.randint(6, 8), bool(random.randint(0, 1)))
-        self.re_rolls = 3
-        
-        # Dice animation state
-        self.dice_animation = None
-        self.roll_animation_active = False
-        self.roll_start_time = 0
-        
-        # CREATE ALL UI ELEMENTS BEFORE super()
-        self.skills_radio_button = RadioButtonGroup(
-            label_str="Select skills after class",
-            multiselect=0,
-            position=(20, 90),
-            options=[],
-            on_change=self._set_selected_skills
-        )
-        
-        self.attrib_radio_button = self._build_scene_attribs(screen)
-            # FIXED: Proper closure capture with default args
-        for i, radio_group in enumerate(self.attrib_radio_button):
-            radio_group.on_change = lambda p, x, idx=i: self._attrib_changed(idx, self.rolled_atribs[i], p, x)
+            self.avaliable_skills: List[SkillEnum] = []
+            self.skill_len = 0  
+            self.selected_skills = []
+            self.selected_expertises = []
+            self.error: Optional[SimpleText] = None
+            self.re_rolls = 3
+            
+            # Dice animation state
+            self.dice_animation = None
+            self.roll_animation_active = False
+            self.roll_start_time = 0
 
+            # Basic context assignment needed for UI builders
+            self.screen = screen
+            self.game = game
+            self.selected_race = None
+            self.selected_class = None
+            self.selected_name = self._gerar_nome(random.randint(6, 8), bool(random.randint(0, 1)))
 
-        self.reroll_button = Button(
-            image=None,
-            position=(24, 24),
-            background_color=(255, 255, 255),
-            text=SimpleText(text="Reroll (3)", text_color=(0, 0, 0), position=(0, 0), size=24),
-            hover_transform_strategy=ColorInverter(),
-            click_function=self._reroll
-        )
-        
-
-        self._update_attrib_checklist()
-
-        # NOW super() calls build_scene() - all elements exist
-        super().__init__(background, screen, game)
-        # Basic state FIRST
-        self.game = game
-        self.selected_race = None
-        self.selected_class = None
-        self.selected_attribs = {}
-        
-        # 2. Setup Dice logic | moved to sit after super()
-        self.rolled_atribs = roll_attribs()
-        while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
+            # 2. RUN THE DICE/REROLL LOGIC BEFORE BUILDING THE UI
             self.rolled_atribs = roll_attribs()
-        
-        self.dice_assignments = {} # {column_index: (Attribute, Value)}
-        self.selected_attribs = {} # Final valid mapping
+            while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
+                self.rolled_atribs = roll_attribs()
+            
+            self.dice_assignments = {} # {column_index: (Attribute, Value)}
+            self.selected_attribs = {} # Final valid mapping
 
-        # REPLACE checklist with correct position
-        self.attrib_checklist = SimpleText(
-            text="Attributes: Select to check", 
-            position=(self.screen.get_width() - 500, 580),
-            size=13,
-            text_color=(200, 200, 200),
-        )
-        self.elements.append(self.attrib_checklist) 
-        self._update_attrib_checklist()
-        # Initialize visuals
-        self._update_attrib_checklist()
-        self._start_dice_animation()
+            # 3. NOW BUILD THE UI ELEMENTS USING THE GENERATED DICE NUMBERS
+            self.skills_radio_button = RadioButtonGroup(
+                label_str="Select skills after class",
+                multiselect=0,
+                position=(20, 90),
+                options=[],
+                on_change=self._set_selected_skills
+            )
+            
+            # This safely reads self.rolled_atribs now
+            self.attrib_radio_button = self._build_scene_attribs(screen)
+            for i, radio_group in enumerate(self.attrib_radio_button):
+                radio_group.on_change = lambda p, x, idx=i: self._attrib_changed(idx, self.rolled_atribs[i], p, x)
 
-        # --- CINEMATIC SEQUENCE SETUP ---
-        sw, sh = screen.get_width(), screen.get_height()
-        
-        self.stripe_queue = [
-            HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
-            HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500),
-            HorizontalBar(sw, sh, f"Resultados: {', '.join(map(str, self.rolled_atribs))}", hold_duration_ms=800)
-        ]
-        
-        # Push the first stripe to the active list
-        self._next_stripe()
+            self.reroll_button = Button(
+                image=None,
+                position=(24, 24),
+                background_color=(255, 255, 255),
+                text=SimpleText(text="Reroll (3)", text_color=(0, 0, 0), position=(0, 0), size=24),
+                hover_transform_strategy=ColorInverter(),
+                click_function=self._reroll
+            )
 
-        # Build initial UI (but maybe hide dice elements until rolled? Up to you)
-        self._update_attrib_checklist()
+            # REPLACE checklist with correct position
+            self.attrib_checklist = SimpleText(
+                text="Attributes: Select to check", 
+                position=(self.screen.get_width() - 500, 580),
+                size=13,
+                text_color=(200, 200, 200),
+            )
+
+            # 4. NOW CALL THE PARENT INITIALIZATION (which invokes build_scene)
+            super().__init__(background, screen, game)
+
+            # 5. Initialize visuals and trigger opening sequence
+            self.elements.append(self.attrib_checklist) 
+            self._update_attrib_checklist()
+            self._start_dice_animation()
+
+            # --- CINEMATIC SEQUENCE SETUP ---
+            sw, sh = screen.get_width(), screen.get_height()
+            self.stripe_queue = [
+                HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
+                HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500),
+                HorizontalBar(sw, sh, f"Resultados: {', '.join(map(str, self.rolled_atribs))}", hold_duration_ms=800)
+            ]
+            
+            self._next_stripe()
 
     def _next_stripe(self):
         if self.stripe_queue:
@@ -234,14 +225,15 @@ class CharacterCreator(Scene):
         screen_w = self.screen.get_width()
         MARGIN = 40
         USABLE_WIDTH = screen_w - (MARGIN * 2)
-        COL_4_X = MARGIN + (USABLE_WIDTH / 4 * 3)  # Your exact column
+        COL_4_X = MARGIN + (USABLE_WIDTH / 4 * 2.35)  # Your exact column
         y_offset = 641  # Your exact Y start
         line_height = 28  # Your exact spacing
 
-        # → Your header (unchanged)
+        # → Your header (enhanced with persistent rolled pool)
+        pool_str = f"Pool: {', '.join(map(str, getattr(self, 'rolled_atribs', [])))}"
         header = SimpleText(
-            text="Attributes Checklist:",
-            size=20,
+            text=f"Attributes ({pool_str}):",
+            size=17,
             position=(COL_4_X, y_offset - 40),
             text_color=(255, 215, 0)
         )
@@ -333,6 +325,8 @@ class CharacterCreator(Scene):
         if not self.selected_skills:
             self._update_error(f"You must select at least {self.skill_len} skill(s)")
             return False
+        if not isinstance(self.selected_skills, list):
+            self.selected_skills = [self.selected_skills] if self.selected_skills else []
         if len(self.selected_skills) < self.skill_len:
             self._update_error(f"You must select at least {self.skill_len} skill(s)")
             return False
@@ -387,8 +381,13 @@ class CharacterCreator(Scene):
         else:
             self.error.change_text(error_txt)
 
-    def _set_selected_skills(self, previous, skills: List[SkillEnum]) -> None:
-        self.selected_skills = skills
+    def _set_selected_skills(self, previous, skills) -> None:
+        if skills is None:
+            self.selected_skills = []
+        elif isinstance(skills, list):
+            self.selected_skills = skills
+        else:
+            self.selected_skills = [skills]
 
     def _set_selected_race(self, previous, race: CharacterRace):
         self.selected_race = race
@@ -502,8 +501,23 @@ class CharacterCreator(Scene):
                 position=(self.screen.get_width() - 180, self.screen.get_height() - 60)
             ),
 
+            # --- Top-Right: Return to Menu (Zero layout shift) ---
+            Button(
+                image=None,
+                text=SimpleText(text="Menu", size=20, position=(0, 0), text_color=(0, 0, 0)),
+                hover_transform_strategy=ColorInverter(),
+                background_color=(220, 100, 100),
+                click_function=self._back_to_menu,
+                position=(self.screen.get_width() - 110, 24)
+            ),
+
             self.reroll_button
         ] + self.attrib_radio_button
+
+    def _back_to_menu(self):
+        print("🔙 Returning to Main Menu...")
+        from src.engine.scene.MainMenu import MainMenu
+        self.game.change_scene(MainMenu(None, self.screen, self.game))
 
     # def _play_with_random(self):
     #     self._set_selected_race(None, random.choice(list(CharacterRace)))

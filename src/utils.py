@@ -129,6 +129,22 @@ def typewriter_sound():
     except Exception:
         pass
 
+def log_to_session(text: str):
+    """Appends adventure text to a daily session log file in backups/."""
+    import datetime
+    try:
+        if not os.path.exists("backups"):
+            os.makedirs("backups")
+        
+        # Create a unique file per day
+        filename = os.path.join("backups", f"session_{datetime.date.today().strftime('%Y%m%d')}.txt")
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        
+        with open(filename, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] {text}\n")
+    except Exception as e:
+        print(f"[Logger] Error: {e}")
+
 # --- Utility Graphics/System Helpers ---
 
 def get_default_font(size: int) -> pygame.font.Font:

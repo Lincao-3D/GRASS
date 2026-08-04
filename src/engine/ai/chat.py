@@ -1,3 +1,4 @@
+import os
 import threading
 from google import genai  # Nova SDK
 import time
@@ -7,9 +8,22 @@ class Chat:
     def __init__(self, system_prompt: str, initial_message: str, api_key: str, game):
         self.game = game
         
-        # 1. Configuração do Cliente (Substitui o genai.configure)
-        self.client = genai.Client(api_key=api_key)
-        # self.model_name = "gemini-1.5-flash"
+        # --- API Key Resolution Logic ---
+        gemini_env = os.getenv("GEMINI_API_KEY")
+        google_env = os.getenv("GOOGLE_API_KEY")
+
+        if gemini_env:
+            resolved_key = gemini_env
+            print("[INFO] Using GEMINI_API_KEY from environment variables.")
+        elif google_env:
+            resolved_key = google_env
+            print("[INFO] GEMINI_API_KEY not found. Falling back to GOOGLE_API_KEY.")
+        else:
+            resolved_key = api_key
+            print("[INFO] No API keys found in environment. Using fallback constructor key.")
+
+        # 1. Configuração do Cliente with prioritized key
+        self.client = genai.Client(api_key=resolved_key)
         self.model_name = "gemini-3.1-flash-lite-preview"
         self.system_prompt = system_prompt
         
@@ -65,10 +79,8 @@ class Chat:
 
     def get_history_data(self) -> List[Dict]:
         """Extrai o histórico para salvar em arquivo (JSON)"""
-        # Como o self.history já é uma lista de dicts no formato Gemini,
-        # podemos retornar quase diretamente ou garantir que está serializável.
         return self.history
 
     def load_history_data(self, data: List[Dict]):
-        """Restaura o histórico salvo"""
+        """Restaura o histórico salvou"""
         self.history = data

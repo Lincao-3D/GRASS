@@ -21,7 +21,7 @@ from src.engine.ui.TextInput import TextInput
 from src.engine.ui.HorizontalBar import HorizontalBar
 from src.model.Item import Usable
 from src.model.scenario import Scenario
-from src.utils import get_center_x, print_debug, get_default_font, typewriter_sound
+from src.utils import get_center_x, print_debug, get_default_font, typewriter_sound, log_to_session
 
 class ChatScene(Scene):
     def __init__(self, screen, game: "Game", scenario: Scenario):
@@ -37,8 +37,21 @@ class ChatScene(Scene):
         self.active_typewriter = None 
 
         # 2. Setup UI Elements
+        initial_text = ""
+        if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
+            for msg in self.game.chat.history:
+                role = msg.get("role")
+                parts = msg.get("parts", [])
+                text_content = "".join(part.get("text", "") for part in parts)
+                if role == "user":
+                    initial_text += f"Player:\n{text_content}\n"
+                elif role == "model":
+                    initial_text += f"DM:\n{text_content}\n"
+        else:
+            initial_text = f"DM:\n{scenario.initial_message}\n"
+
         self.actual_text = TextAreaShow(
-            text=f"DM:\n{scenario.initial_message}\n",
+            text=initial_text,
             position=(20, screen.get_height() // 2),
             width=screen.get_width() - 32,
             height=(screen.get_height() // 2) - 75
@@ -70,13 +83,29 @@ class ChatScene(Scene):
         )
         self.combat_button.visible = self.combat_button.enabled = False
 
-        # Local variable for btn_save as requested (it is captured by build_scene)
+        # Local variable for buttons as requested
         btn_save = Button(
             image=None,
-            text=SimpleText("Save Game", 18, (0, 0), (255, 255, 255)),
+            text=SimpleText("Save", 18, (0, 0), (255, 255, 255)),
             background_color=(50, 50, 150),
-            position=(screen.get_width() - 280, 20),
+            position=(screen.get_width() - 100, 20),
             click_function=self._save_game
+        )
+
+        btn_options = Button(
+            image=None,
+            text=SimpleText("Options", 18, (0, 0), (255, 255, 255)),
+            background_color=(100, 100, 100),
+            position=(screen.get_width() - 450, 20),
+            click_function=self._open_options
+        )
+
+        btn_sheet = Button(
+            image=None,
+            text=SimpleText("Sheet", 18, (0, 0), (255, 255, 255)),
+            background_color=(150, 50, 50),
+            position=(screen.get_width() - 800, 20),
+            click_function=self._toggle_char_sheet
         )
 
         # 3. Setup Commands
@@ -88,14 +117,21 @@ class ChatScene(Scene):
             "exit": lambda args: self.game.main_menu()
         }
 
-        # Store the save button so build_scene can access it
+        # Store buttons so build_scene can access it
         self.btn_save = btn_save
+        self.btn_options = btn_options
+        self.btn_sheet = btn_sheet
 
         # 4. Finalize Scene Initialization
         super().__init__(None, screen, game)
+        self.player_input.focus = True
+        pygame.key.start_text_input()
 
     def build_scene(self, game: "Game") -> List[SceneElement]:
         """Defines what is drawn on the screen."""
+        from src.engine.ui.CharacterSheetPanel import CharacterSheetPanel
+        self.char_sheet = CharacterSheetPanel(self.game.player, (self.screen.get_width(), 0), self.screen)
+        
         return [
             StaticImage(
                 relative_path="chat.png",
@@ -107,24 +143,26 @@ class ChatScene(Scene):
             self.player_input,
             self.actual_text,
             self.combat_button,
-            self.btn_save  # Critical: Button must be in this list to work
+            self.btn_save,
+            self.btn_options,
+            self.btn_sheet,
+            self.char_sheet
         ]
 
+    def _open_options(self):
+        from src.engine.scene.Options import Options
+        self.game.change_scene(Options(None, self.screen, self.game))
+
+    def _toggle_char_sheet(self):
+        if hasattr(self, 'char_sheet'):
+            self.char_sheet.toggle()
+
     def _save_game(self):
-        """Logic for the Save Button"""
-        save_data = {
-            "player": self.game.player.to_dict() if self.game.player else None,
-            "history": self.game.chat.history if self.game.chat else []
-        }
-        try:
-            with open("save_game.json", "w") as f:
-                json.dump(save_data, f, indent=4)
-            
-            # Visual feedback
-            stripe = HorizontalBar(self.screen.get_width(), self.screen.get_height(), "Game Saved at save_game.json!")
-            self.elements.append(stripe)
-        except Exception as e:
-            print(f"Error saving game: {e}")
+        """Prompt user for filename before saving"""
+        self._put_text("\n[System: Type a filename for your save and press Enter]\n")
+        self.saving_mode = True
+        self.player_input.focus = True
+        pygame.key.start_text_input()
 
     def _manual_save(self, args: List[str]):
         """Logic for the /save command"""
@@ -139,6 +177,15 @@ class ChatScene(Scene):
         if not text:
             return
         
+        if getattr(self, 'saving_mode', False):
+            if self.game.save_session(text):
+                self._put_text(f"\n[System: Game saved as '{text}']\n")
+            else:
+                self._put_text(f"\n[System: Failed to save game!]\n")
+            self.saving_mode = False
+            self.player_input.text_str = ""
+            return
+
         # Check for commands
         if text.startswith("/"):
             parts = text[1:].split()
@@ -150,7 +197,9 @@ class ChatScene(Scene):
                 return
 
         self.player_input.text.change_text("")
-        self._put_text(f"\n{self.game.player.name}:\n{text}\nDM:\n")
+        user_msg = f"\n{self.game.player.name}:\n{text}\nDM:\n"
+        self._put_text(user_msg)
+        log_to_session(f"PLAYER ({self.game.player.name}): {text}")
         self._hide_input()
         
         self.active_typewriter = TypewriterManager("Mestre está pensando...", speed_ms=50)
@@ -163,12 +212,70 @@ class ChatScene(Scene):
     def _on_chat_response(self, response_text):
         if response_text is None:
             response_text = "[Erro: Resposta vazia da API]"
+
+        # Extract JSON state updates
+        import re
+        json_pattern = r'```json\s*(.*?)\s*```'
+        match = re.search(json_pattern, response_text, re.DOTALL)
+        if match:
+            try:
+                json_data = json.loads(match.group(1))
+                self._update_player_state(json_data)
+                # Remove the JSON block from the text shown to the user
+                response_text = re.sub(json_pattern, '', response_text, flags=re.DOTALL).strip()
+            except Exception as e:
+                print(f"Error processing AI JSON: {e}")
+
+        log_to_session(f"DM: {response_text}")
         self.active_typewriter = TypewriterManager(response_text, speed_ms=25)
+
+    def _update_player_state(self, data: dict):
+        """Processes JSON blocks from the AI to update character state."""
+        player = self.game.player
+        if not player: return
+
+        # Stats updates
+        if "stats" in data:
+            s = data["stats"]
+            if "hp" in s: player.heal(s["hp"])
+            if "gold" in s: player.gold = max(0, player.gold + s["gold"])
+            if "xp" in s: player.give_xp(s["xp"])
+            if "mana" in s: player.mana = max(0, min(player.max_mana, player.mana + s["mana"]))
+
+        # Inventory updates
+        if "inventory" in data:
+            for item_id, qty in data["inventory"].items():
+                try:
+                    player.give_item(int(item_id), qty)
+                except: pass
+
+        # XP / Level Up notification (Simplified for now)
+        if "xp" in data.get("stats", {}):
+            from src.engine.ui.HorizontalBar import HorizontalBar
+            self.elements.append(HorizontalBar(self.screen.get_width(), self.screen.get_height(), f"+{data['stats']['xp']} XP GAINED!"))
+
+    def handle_events(self, events: List[pygame.event.Event], mouse_pos: tuple):
+        # 1. Always trigger parent event router so UI Elements remain interactive
+        super().handle_events(events, mouse_pos)
+        
+        # 2. Intercept instant-reveal text shortcuts while typing is active
+        if self.active_typewriter and not self.active_typewriter.is_complete:
+            for event in events:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                        new_text = self.active_typewriter.reveal_all()
+                        if new_text:
+                            self.actual_text.text += new_text
+                            typewriter_sound()
 
     def update(self):
         super().update()
         if self.active_typewriter and not self.active_typewriter.is_complete:
-            new_text = self.active_typewriter.update()
+            # Read continuous state of the keyboard for smooth fast-forwarding
+            keys = pygame.key.get_pressed()
+            fast_forward_active = keys[pygame.K_SPACE]
+            
+            new_text = self.active_typewriter.update(fast_forward=fast_forward_active)
             if new_text:
                 self.actual_text.text += new_text
                 typewriter_sound()

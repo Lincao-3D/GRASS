@@ -37,7 +37,8 @@ class Scene(ABC):
             for element in self.elements:
                 element.update(event, mouse_pos)
 
-    def update(self):
+    def update(self, *args, **kwargs):
+        # added *args and kwargs
         mouse_position = pygame.mouse.get_pos()
         self.elements = [e for e in self.elements if not getattr(e, 'is_done', False)]
         for element in self.elements:

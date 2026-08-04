@@ -98,28 +98,59 @@ class Game:
             "gpt_model": "gemini-1.5-flash"
         }
 
-    def save_session(self):
-        """Save the overall state of the adventure"""
-        if not os.path.exists("saves"): os.makedirs("saves")
+    def save_session(self, filename: str = "save_game.json"):
+        """Saves the overall state of the adventure to a JSON file."""
+        if not os.path.exists("saves"): 
+            os.makedirs("saves")
+        
+        # Clean filename: strip spaces, lower case, ensure .json
+        clean_name = filename.strip().replace(" ", "_").lower()
+        if not clean_name.endswith(".json"):
+            clean_name += ".json"
+            
+        path = os.path.join("saves", clean_name)
+        
         save_data = {
-            "player": self.player,
-            "chat_history": self.chat.get_history_data() if self.chat else [],
-            "scenario_name": self.scenario.name
+            "player": self.player.to_dict() if self.player else None,
+            "chat_history": self.chat.history if self.chat else [],
+            "scenario": self.scenario.dict() if hasattr(self.scenario, 'dict') else self.scenario # Pydantic
         }
-        with open(self.save_path, "wb") as f:
-            pickle.dump(save_data, f)
+        
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(save_data, f, indent=4)
+            return True
+        except Exception as e:
+            print(f"Failed to save session to {path}: {e}")
+            return False
 
-    def load_session(self):
-        """The adventure continues with the Gemini save and history loaded"""
-        if os.path.exists(self.save_path):
-            with open(self.save_path, "rb") as f:
-                data = pickle.load(f)
-                self.player = data["player"]
-                if self.chat:
-                    self.chat.load_history_data(data["chat_history"])
+    def load_session(self, filename: str):
+        """Loads the adventure state from a JSON file."""
+        path = os.path.join("saves", filename) if not os.path.isabs(filename) else filename
+        if not os.path.exists(path) and not os.path.isabs(filename):
+            path = filename # Fallback to literal if saves/ doesn't exist
+            
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    
+                # Reconstruct player via Player.from_dict
+                from src.model.player import Player
+                
+                pd = data.get("player")
+                if pd:
+                    self.player = Player.from_dict(pd)
+
+                if self.chat and "chat_history" in data:
+                    self.chat.history = data["chat_history"]
                 
                 from src.engine.scene.ChatScene import ChatScene
                 self.change_scene(ChatScene(self.screen, self, self.scenario))
+                return True
+            except Exception as e:
+                print(f"Error loading {path}: {e}")
+        return False
 
     def change_scene(self, new_scene):
         self.scene = new_scene

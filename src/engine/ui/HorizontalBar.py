@@ -5,34 +5,31 @@ from src.utils import play_retro_woosh
 
 class HorizontalBar(UIElement):
     def __init__(self, screen_w, screen_h, text, hold_duration_ms=2000):
+        super().__init__(None, (0, 0)) # Call parent initialization
         self.screen_w = screen_w
         self.height = 60
         self.y = (screen_h // 2) - (self.height // 2)
         
         self.x = screen_w  # Starts off-screen right
-        self.target_center_x = 0  # Will rest at x=0 (full width stripe)
+        self.target_center_x = 0  
         
         self.text_elem = SimpleText(text, 28, (0, 0), (255, 255, 255))
         
-        # Sound playing logic
         self.played_sound = False
-
-        # State Machine: ENTER -> HOLD -> EXIT -> DONE
         self.state = "ENTER"
         self.hold_duration = hold_duration_ms
         self.hold_start_time = 0
         self.speed = 40
         
         self.flash_timer = 0
-        self.is_done = False # Mark True to let Scene remove it
-
-        # Optional: 
-        # pygame.mixer.Sound('assets/sfx/play_retro_woosh.wav').play()
+        self.is_done = False 
+        self.visible = True
+        self.image = None
 
     def update(self, event=None, mouse_pos=None):
         if self.state == "ENTER":
             if not self.played_sound:
-                play_retro_woosh  # Play sound immediately
+                play_retro_woosh()  # FIX: Added parentheses to actually call the function
                 self.played_sound = True
 
             self.x -= self.speed
@@ -49,14 +46,15 @@ class HorizontalBar(UIElement):
         elif self.state == "EXIT":
             self.x -= self.speed
             if self.x < -self.screen_w:
-                self.is_done = True # Safe to garbage collect
+                self.is_done = True 
 
-    def draw(self, screen):
+    # FIX: Renamed from 'draw' to 'render' to comply with SceneElement ABC
+    def render(self, screen: pygame.Surface): 
         if self.is_done: return
         
         # Draw Black Stripe (with alpha)
         stripe_surface = pygame.Surface((self.screen_w, self.height), pygame.SRCALPHA)
-        stripe_surface.fill((0, 0, 0, 200)) # 200 alpha
+        stripe_surface.fill((0, 0, 0, 200)) 
         
         # Flashing borders (Gold/White alternating)
         self.flash_timer += 1
@@ -70,4 +68,6 @@ class HorizontalBar(UIElement):
         text_x = self.x + (self.screen_w // 2) - (self.text_elem.font.size(self.text_elem.text)[0] // 2)
         text_y = self.y + 15
         self.text_elem.position = (text_x, text_y)
-        self.text_elem.draw(screen)
+        
+        # FIX: Changed from .draw to .render to match SceneElement structure
+        self.text_elem.render(screen)
