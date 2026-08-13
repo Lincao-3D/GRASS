@@ -10,7 +10,7 @@ class CharacterSheetPanel(UIElement):
         super().__init__(None, position)
         self.player = player
         self.screen = screen
-        self.width = 350
+        self.width = 410
         self.height = screen.get_height()
         self.target_x = screen.get_width()
         self.current_x = screen.get_width()
@@ -27,7 +27,7 @@ class CharacterSheetPanel(UIElement):
     def toggle(self):
         self.is_open = not self.is_open
         if self.is_open:
-            self.target_x = self.screen.get_width() - self.width
+            self.target_x = self.screen.get_width() - self.width - 100 #since this offset didn't work, I'll need more x offset to make it visible
         else:
             self.target_x = self.screen.get_width()
 
@@ -53,15 +53,19 @@ class CharacterSheetPanel(UIElement):
         x_offset = self.current_x + self.padding
         y_offset = self.padding
 
-        # Name & Title
+       # Name & Title
         title_surf = self.font_large.render(f"{self.player.name}", True, (255, 215, 0))
         surface.blit(title_surf, (x_offset, y_offset))
         y_offset += 40
 
-        class_text = f"{self.player.clazz.name} (Lvl 1) - {self.player.race}"
-        class_surf = self.font_medium.render(class_text, True, (200, 200, 200))
-        surface.blit(class_surf, (x_offset, y_offset))
-        y_offset += 40
+        # Fix: Split by newline and render each line separately
+        class_text = f"{self.player.clazz.name} (Lvl 1)\n- {self.player.race}"
+        for line in class_text.split('\n'):
+            class_surf = self.font_small.render(line, True, (200, 200, 200))
+            surface.blit(class_surf, (x_offset, y_offset))
+            y_offset += 20  # Smaller increment for subtitle lines
+
+        y_offset += 20
 
         # Stats
         stats = [
@@ -72,7 +76,7 @@ class CharacterSheetPanel(UIElement):
         ]
 
         for text, color in stats:
-            surf = self.font_medium.render(text, True, color)
+            surf = self.font_small.render(text, True, color)
             surface.blit(surf, (x_offset, y_offset))
             y_offset += 30
         

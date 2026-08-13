@@ -69,6 +69,9 @@ class Button(UIElement):
         self.image = self.get_image(self.text, self.clean_image, self.background_color, self.padding)
         self.original_image = self.image.copy()
         self.rect = self.image.get_rect()
+        # Always re-apply position so callers never need to patch rect.topleft
+        # manually after calling this method.
+        self.rect.topleft = self.position
 
         # NEW: Recreate tooltip if rect size changed
         if self.show_tooltip and self.tooltip_surface:

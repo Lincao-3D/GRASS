@@ -1,6 +1,6 @@
 from typing import List, TYPE_CHECKING
 import pygame
-
+from src.engine.scene.ChatScene import ChatScene
 from src.engine.scene.Scene import Scene
 from src.engine.scene.SceneElement import SceneElement
 from src.engine.ui.Button import Button
@@ -58,7 +58,7 @@ class Options(Scene):
             tooltip_text="Facilita a alteração do cenário/mundo - ou mude completamente o tipo de RPG"
         ))
 
-        # 4. Save & Return
+        # 4. Save & Return to Main Menu
         elements.append(Button(
             image=None,
             text=SimpleText("Save & Return", 24, (0, 0), (255, 255, 255)),
@@ -66,6 +66,16 @@ class Options(Scene):
             click_function=self._return_to_main,
             tooltip_text="Salva quaisquer alterações e retorna para o menu principal"
         ))
+
+        # 4. Return to Game (if applicable)
+        if self.game.player is not None:
+            elements.append(Button(
+                image=None,
+                text=SimpleText("Return to Game", 24, (0, 0), (255, 255, 255)),
+                position=(screen_w // 2 - 100, 520),
+                click_function=self.close,
+                tooltip_text="Salva quaisquer alterações e retorna ao jogo em andamento"
+            ))
 
         return elements
 
@@ -87,3 +97,10 @@ class Options(Scene):
     def _open_scenario_assistant(self):
         from src.engine.scene.ScenarioAssistant import ScenarioAssistant
         self.game.change_scene(ScenarioAssistant(None, self.screen, self.game))
+
+    def close(self):
+        """Returns to the active game session."""
+        if hasattr(self.game, 'previous_scene') and self.game.previous_scene:
+            self.game.back_scene()
+        else:
+            self.game.change_scene(ChatScene(self.screen, self.game, self.game.scenario))

@@ -39,16 +39,32 @@ class ChatScene(Scene):
         # 2. Setup UI Elements
         initial_text = ""
         if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
-            for msg in self.game.chat.history:
+            for i, msg in enumerate(self.game.chat.history):
                 role = msg.get("role")
                 parts = msg.get("parts", [])
                 text_content = "".join(part.get("text", "") for part in parts)
-                if role == "user":
-                    initial_text += f"Player:\n{text_content}\n"
-                elif role == "model":
+                
+                # Força a primeira mensagem a ser do DM caso venha trocada do backend/histórico
+                if i == 0 and role == "user":
+                    initial_text += f"DM:\n{text_content}\n"
+                elif role == "user":
+                    initial_text += f"{self.game.player.name}:\n{text_content}\n"
+                elif role == "model" or role == "assistant":
                     initial_text += f"DM:\n{text_content}\n"
         else:
             initial_text = f"DM:\n{scenario.initial_message}\n"
+        # initial_text = ""
+        # if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
+        #     for msg in self.game.chat.history:
+        #         role = msg.get("role")
+        #         parts = msg.get("parts", [])
+        #         text_content = "".join(part.get("text", "") for part in parts)
+        #         if role == "user":
+        #             initial_text += f"Player:\n{text_content}\n"
+        #         elif role == "model":
+        #             initial_text += f"DM:\n{text_content}\n"
+        # else:
+        #     initial_text = f"DM:\n{scenario.initial_message}\n"
 
         self.actual_text = TextAreaShow(
             text=initial_text,
@@ -96,7 +112,7 @@ class ChatScene(Scene):
             image=None,
             text=SimpleText("Options", 18, (0, 0), (255, 255, 255)),
             background_color=(100, 100, 100),
-            position=(screen.get_width() - 450, 20),
+            position=(screen.get_width() - 250, 20),
             click_function=self._open_options
         )
 
@@ -104,7 +120,7 @@ class ChatScene(Scene):
             image=None,
             text=SimpleText("Sheet", 18, (0, 0), (255, 255, 255)),
             background_color=(150, 50, 50),
-            position=(screen.get_width() - 800, 20),
+            position=(screen.get_width() - 400, 20),
             click_function=self._toggle_char_sheet
         )
 

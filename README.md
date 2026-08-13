@@ -2,6 +2,8 @@
 
 O **GRASS** é um jogo de RPG de texto inovador construído em Python. Utiliza a biblioteca **Pygame** para a interface gráfica e integra Inteligência Artificial (Modelos de Linguagem - LLMs) para gerar dinamicamente a narrativa, interagir com o jogador e gerir os eventos do mundo.
 
+<img src="https://drive.google.com/uc?export=download&id=1PoZgfHSG-2LwdNdnbdA5Q-YXGmgB-ndR" width="400" />
+
 ## ✨ Funcionalidades
 
 * **Narrativa Dinâmica:** O mundo reage às suas ações com textos gerados por IA em tempo real.
