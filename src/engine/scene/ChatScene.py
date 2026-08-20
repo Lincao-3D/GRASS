@@ -8,7 +8,6 @@ from typing import List, Callable, Dict, Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from src.engine.Game import Game
 
-# Engine & UI Imports
 from src.engine.ui.TypewriterManager import TypewriterManager
 from src.engine.scene.CombatScene import CombatScene
 from src.engine.scene.Scene import Scene
@@ -36,6 +35,16 @@ class ChatScene(Scene):
         self.loading = False
         self.active_typewriter = None 
         self._ui_queue = queue.Queue()
+
+        # Inject physical dice mode awareness into Gemini DM context
+        if getattr(self.game, "physical_dice_enabled", False):
+            if hasattr(self.game, "chat") and hasattr(self.game.chat, "system_prompt"):
+                if "Physical Dice Mode" not in self.game.chat.system_prompt:
+                    self.game.chat.system_prompt += (
+                        "\n\n[SYSTEM DIRECTIVE: Physical Dice Mode is ENABLED. "
+                        "The player is using real physical tabletop dice. "
+                        "Prompt the player to roll physical dice for attribute checks, skill tests, and saving throws during narrative choices.]"
+                    )
         
         initial_text = ""
         if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
@@ -277,7 +286,6 @@ class ChatScene(Scene):
                 if msg.get("type") == "chat_response":
                     response_text = msg.get("text")
                     
-                    # 1. Thread-safe null and empty string safeguard
                     if not response_text or not str(response_text).strip():
                         response_text = "[O Mestre permaneceu em silêncio...]"
                         self._show_input()
@@ -348,7 +356,6 @@ class ChatScene(Scene):
         if self.eminent_combat:
             result = getattr(self.eminent_combat, "result", None)
             
-            # Extract attributes safely with fallback defaults
             victory = getattr(result, "victory", False)
             player_flee = getattr(result, "player_flee", False)
             enemies_flee = getattr(result, "enemies_flee", [])
@@ -358,7 +365,6 @@ class ChatScene(Scene):
             xp_earned = getattr(result, "xp_earned", 0)
             loot_items = getattr(result, "loot_items", [])
 
-            # Format combat result payload
             msg = (
                 f"event:combat_ended\n"
                 f"Victory:{victory}\n"
@@ -368,7 +374,6 @@ class ChatScene(Scene):
                 f"Total Enemies:{len(enemies)}"
             )
 
-            # Optional yield context supplied without forcing AI execution
             if xp_earned or loot_items:
                 msg += f"\nYield Context (DM discretion): XP={xp_earned}, Items={loot_items}"
 
