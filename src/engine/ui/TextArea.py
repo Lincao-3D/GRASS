@@ -71,12 +71,77 @@ class TextAreaShow(UIElement):
             max_scroll = max(0, total_height - visible_height)
             self.scroll_y = max_scroll
 
+    def _get_card_lines(self, card_data: Dict[str, Any]) -> List[Tuple[str, str]]:
+        """Parses any JSON dictionary into formatted printable label-value pairs."""
+        lines = []
+        
+        # 1. Enemies / Inimigos
+        inimigos = card_data.get("inimigos") or card_data.get("enemies") or card_data.get("inimigo") or card_data.get("enemy")
+        if inimigos:
+            if isinstance(inimigos, list):
+                for e in inimigos:
+                    if isinstance(e, dict):
+                        nome = e.get("nome") or e.get("name", "Desconhecido")
+                        qtd = e.get("quantidade") or e.get("qtd") or e.get("count", 1)
+                        hp = e.get("hp")
+                        hp_str = f" (HP: {hp})" if hp is not None else ""
+                        lines.append(("Inimigo", f"{nome} x{qtd}{hp_str}"))
+                    else:
+                        lines.append(("Inimigo", str(e)))
+            elif isinstance(inimigos, dict):
+                nome = inimigos.get("nome") or inimigos.get("name", "Desconhecido")
+                qtd = inimigos.get("quantidade") or inimigos.get("qtd") or inimigos.get("count", 1)
+                hp = inimigos.get("hp")
+                hp_str = f" (HP: {hp})" if hp is not None else ""
+                lines.append(("Inimigo", f"{nome} x{qtd}{hp_str}"))
+            else:
+                lines.append(("Inimigo", str(inimigos)))
+
+        # 2. Items / Itens
+        items = card_data.get("itens") or card_data.get("items") or card_data.get("inventory")
+        if items:
+            if isinstance(items, list):
+                item_strs = []
+                for item in items:
+                    if isinstance(item, dict):
+                        item_strs.append(f"{item.get('nome', item.get('name', 'Item'))} x{item.get('quantidade', item.get('count', 1))}")
+                    else:
+                        item_strs.append(str(item))
+                lines.append(("Itens", ", ".join(item_strs)))
+            elif isinstance(items, dict):
+                item_strs = [f"{k}: x{v}" for k, v in items.items()]
+                lines.append(("Itens", ", ".join(item_strs)))
+            else:
+                lines.append(("Itens", str(items)))
+
+        # 3. Stats / Atributos
+        stats = card_data.get("stats")
+        if stats and isinstance(stats, dict):
+            stat_parts = [f"{k.upper()}: {v}" for k, v in stats.items()]
+            lines.append(("Atributos", ", ".join(stat_parts)))
+
+        # 4. Other key-values (actions, outcomes, generic fields)
+        known_keys = {"evento", "event", "inimigos", "enemies", "inimigo", "enemy", "itens", "items", "inventory", "stats"}
+        for key, val in card_data.items():
+            if key.lower() not in known_keys:
+                key_label = key.replace("_", " ").capitalize()
+                if isinstance(val, (dict, list)):
+                    val_str = json.dumps(val, ensure_ascii=False)
+                else:
+                    val_str = str(val)
+                lines.append((key_label, val_str))
+
+        if not lines:
+            lines.append(("Dados", json.dumps(card_data, ensure_ascii=False)))
+
+        return lines
+
     def _calculate_card_height(self, card_data: Dict[str, Any]) -> int:
-        """Calculates exact pixel height for a combat card."""
+        """Calculates exact pixel height for a game state / combat card."""
         header_h = 28
         item_h = 20
-        inimigos = card_data.get("inimigos", [])
-        return header_h + (len(inimigos) * item_h) + 20 # Height + bottom margin
+        lines = self._get_card_lines(card_data)
+        return header_h + (len(lines) * item_h) + 16
 
     def _wrap_text(self) -> List[Tuple[Any, str, int]]:
         """
@@ -89,8 +154,6 @@ class TextAreaShow(UIElement):
         line_height = self.font.get_height()
         
         text = self._text
-        import json
-        import re
         
         # 1. Identify all JSON blocks (markdown wrapped first, then raw brace-wrapped objects)
         blocks = [] # List of (start_idx, end_idx, parsed_data)
@@ -122,12 +185,12 @@ class TextAreaShow(UIElement):
             elif char == '}':
                 if stack:
                     stack.pop()
-                    if not stack:
+                    if not stack and start_idx != -1:
                         candidate = text[start_idx:i+1]
                         try:
                             data = json.loads(candidate)
                             blocks.append((start_idx, i+1, data))
-                        except ValueError:
+                        except Exception:
                             pass
                             
         # Sort blocks by start index
@@ -203,41 +266,49 @@ class TextAreaShow(UIElement):
         return track_rect, thumb_rect, track_y, track_height
 
     def _render_combat_card(self, surface: pygame.Surface, card_data: Dict[str, Any], x: int, y: int):
-        """Renders an inline combat card badge."""
+        """Renders an inline game state / combat card badge."""
         card_w = self.width - (2 * self.padding) - 8 # Reserved right margin for scrollbar
-        inimigos = card_data.get("inimigos", [])
+        lines = self._get_card_lines(card_data)
         
         header_h = 28
         item_h = 20
-        total_card_h = header_h + (len(inimigos) * item_h) + 12
+        total_card_h = header_h + (len(lines) * item_h) + 12
         card_rect = pygame.Rect(x, y, card_w, total_card_h)
         
         # Surface Card Box
         pygame.draw.rect(surface, (28, 20, 24), card_rect, border_radius=4)
         pygame.draw.rect(surface, (180, 50, 50), card_rect, width=1, border_radius=4)
         
-        # Red Accent Strip
+        # Accent Strip
         marker_rect = pygame.Rect(x, y, 5, total_card_h)
         pygame.draw.rect(surface, (220, 60, 60), marker_rect, border_top_left_radius=4, border_bottom_left_radius=4)
         
         # Card Header
-        title_str = f"⚔  EVENTO DE {card_data.get('evento', 'COMBATE').upper()}"
+        event_type = card_data.get('evento') or card_data.get('event') or 'ESTADO DE JOGO'
+        title_str = f"⚔  EVENTO DE {str(event_type).upper()}"
         title_surf = self.font_card_title.render(title_str, True, (220, 60, 60))
         surface.blit(title_surf, (x + 14, y + 5))
         
         pygame.draw.line(surface, (80, 35, 35), (x + 10, y + header_h), (x + card_w - 10, y + header_h), 1)
         
-        # Enemy Listing
+        # Detailed Contents (Enemies, Items, Stats, Actions, etc.)
         curr_y = y + header_h + 6
-        for enemy in inimigos:
-            nome = enemy.get("nome", "Desconhecido")
-            qtd = enemy.get("quantidade", 1)
+        for label, val in lines:
+            lbl_surf = self.font_bold.render(f"{label}:", True, (245, 215, 110))
+            surface.blit(lbl_surf, (x + 18, curr_y))
             
-            qty_surf = self.font_bold.render(f"{qtd}x", True, (245, 215, 110))
-            surface.blit(qty_surf, (x + 18, curr_y))
+            lbl_w = lbl_surf.get_width()
+            max_val_w = card_w - lbl_w - 32
             
-            name_surf = self.font.render(nome, True, (230, 230, 230))
-            surface.blit(name_surf, (x + 48, curr_y))
+            # Truncate value if it exceeds card width
+            display_val = val
+            if self.font.size(display_val)[0] > max_val_w and max_val_w > 20:
+                while display_val and self.font.size(display_val + "...")[0] > max_val_w:
+                    display_val = display_val[:-1]
+                display_val += "..."
+                
+            val_surf = self.font.render(display_val, True, (230, 230, 230))
+            surface.blit(val_surf, (x + 24 + lbl_w, curr_y))
             
             curr_y += item_h
 

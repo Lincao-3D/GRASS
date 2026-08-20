@@ -2,7 +2,8 @@ import queue
 import time
 import json
 import pygame
-from typing import List, Callable, Dict, TYPE_CHECKING
+import re
+from typing import List, Callable, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.engine.Game import Game
@@ -25,10 +26,9 @@ from src.utils import get_center_x, print_debug, get_default_font, typewriter_so
 
 class ChatScene(Scene):
     def __init__(self, screen, game: "Game", scenario: Scenario):
-        # 1. Initialize attributes before super().__init__ if they are used in build_scene
         self.game = game
         self.scenario = scenario
-        self.screen = screen # Ensure screen is accessible for save feedback
+        self.screen = screen
         
         self.eminent_combat = None
         self.last_sound_time = 0
@@ -36,7 +36,7 @@ class ChatScene(Scene):
         self.loading = False
         self.active_typewriter = None 
         self._ui_queue = queue.Queue()
-        # 2. Setup UI Elements
+        
         initial_text = ""
         if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
             for i, msg in enumerate(self.game.chat.history):
@@ -44,7 +44,6 @@ class ChatScene(Scene):
                 parts = msg.get("parts", [])
                 text_content = "".join(part.get("text", "") for part in parts)
                 
-                # Força a primeira mensagem a ser do DM caso venha trocada do backend/histórico
                 if i == 0 and role == "user":
                     initial_text += f"DM:\n{text_content}\n"
                 elif role == "user":
@@ -53,18 +52,6 @@ class ChatScene(Scene):
                     initial_text += f"DM:\n{text_content}\n"
         else:
             initial_text = f"DM:\n{scenario.initial_message}\n"
-        # initial_text = ""
-        # if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
-        #     for msg in self.game.chat.history:
-        #         role = msg.get("role")
-        #         parts = msg.get("parts", [])
-        #         text_content = "".join(part.get("text", "") for part in parts)
-        #         if role == "user":
-        #             initial_text += f"Player:\n{text_content}\n"
-        #         elif role == "model":
-        #             initial_text += f"DM:\n{text_content}\n"
-        # else:
-        #     initial_text = f"DM:\n{scenario.initial_message}\n"
 
         self.actual_text = TextAreaShow(
             text=initial_text,
@@ -99,7 +86,6 @@ class ChatScene(Scene):
         )
         self.combat_button.visible = self.combat_button.enabled = False
 
-        # Local variable for buttons as requested
         btn_save = Button(
             image=None,
             text=SimpleText("Save", 18, (0, 0), (255, 255, 255)),
@@ -124,7 +110,6 @@ class ChatScene(Scene):
             click_function=self._toggle_char_sheet
         )
 
-        # 3. Setup Commands
         self.commands: Dict[str, Callable[[List[str]], None]] = {
             "save": self._manual_save,
             "get_player_status": self._get_player_attribute,
@@ -133,18 +118,15 @@ class ChatScene(Scene):
             "exit": lambda args: self.game.main_menu()
         }
 
-        # Store buttons so build_scene can access it
         self.btn_save = btn_save
         self.btn_options = btn_options
         self.btn_sheet = btn_sheet
 
-        # 4. Finalize Scene Initialization
         super().__init__(None, screen, game)
         self.player_input.focus = True
         pygame.key.start_text_input()
 
     def build_scene(self, game: "Game") -> List[SceneElement]:
-        """Defines what is drawn on the screen."""
         from src.engine.ui.CharacterSheetPanel import CharacterSheetPanel
         self.char_sheet = CharacterSheetPanel(self.game.player, (self.screen.get_width(), 0), self.screen)
         
@@ -174,14 +156,12 @@ class ChatScene(Scene):
             self.char_sheet.toggle()
 
     def _save_game(self):
-        """Prompt user for filename before saving"""
         self._put_text("\n[System: Type a filename for your save and press Enter]\n")
         self.saving_mode = True
         self.player_input.focus = True
         pygame.key.start_text_input()
 
     def _manual_save(self, args: List[str]):
-        """Logic for the /save command"""
         self.game.save_session()
         self._put_text("\n[Sistema: Jogo salvo com sucesso!]\n")
 
@@ -202,7 +182,6 @@ class ChatScene(Scene):
             self.player_input.text_str = ""
             return
 
-        # Check for commands
         if text.startswith("/"):
             parts = text[1:].split()
             cmd = parts[0]
@@ -228,36 +207,60 @@ class ChatScene(Scene):
     def _on_chat_response(self, response_text):
         self._ui_queue.put({"type": "chat_response", "text": response_text})
 
-    def _update_player_state(self, data: dict):
-        """Processes JSON blocks from the AI to update character state."""
-        player = self.game.player
-        if not player: return
+    def _extract_json_payloads(self, text: str) -> List[Dict[str, Any]]:
+        blocks = []
+        
+        for m in re.finditer(r'```json\s*(.*?)\s*```', text, re.DOTALL):
+            try:
+                blocks.append((m.start(), m.end(), json.loads(m.group(1))))
+            except Exception:
+                pass
 
-        # Stats updates
-        if "stats" in data:
+        stack = []
+        start_idx = -1
+        for i, char in enumerate(text):
+            if any(b_start <= i < b_end for b_start, b_end, _ in blocks):
+                continue
+            if char == '{':
+                if not stack:
+                    start_idx = i
+                stack.append('{')
+            elif char == '}':
+                if stack:
+                    stack.pop()
+                    if not stack and start_idx != -1:
+                        try:
+                            blocks.append((start_idx, i + 1, json.loads(text[start_idx:i+1])))
+                        except Exception:
+                            pass
+
+        blocks.sort(key=lambda x: x[0])
+        return [b[2] for b in blocks]
+
+    def _update_player_state(self, data: dict):
+        player = self.game.player
+        if not player or not isinstance(data, dict): return
+
+        if "stats" in data and isinstance(data["stats"], dict):
             s = data["stats"]
             if "hp" in s: player.heal(s["hp"])
             if "gold" in s: player.gold = max(0, player.gold + s["gold"])
             if "xp" in s: player.give_xp(s["xp"])
             if "mana" in s: player.mana = max(0, min(player.max_mana, player.mana + s["mana"]))
 
-        # Inventory updates
-        if "inventory" in data:
-            for item_id, qty in data["inventory"].items():
+        inv = data.get("inventory") or data.get("itens") or data.get("items")
+        if inv and isinstance(inv, dict):
+            for item_id, qty in inv.items():
                 try:
                     player.give_item(int(item_id), qty)
-                except: pass
+                except Exception: pass
 
-        # XP / Level Up notification (Simplified for now)
-        if "xp" in data.get("stats", {}):
-            from src.engine.ui.HorizontalBar import HorizontalBar
+        if "stats" in data and isinstance(data["stats"], dict) and "xp" in data["stats"]:
             self.elements.append(HorizontalBar(self.screen.get_width(), self.screen.get_height(), f"+{data['stats']['xp']} XP GAINED!"))
 
     def handle_events(self, events: List[pygame.event.Event], mouse_pos: tuple):
-        # 1. Always trigger parent event router so UI Elements remain interactive
         super().handle_events(events, mouse_pos)
         
-        # 2. Intercept instant-reveal text shortcuts while typing is active
         if self.active_typewriter and not self.active_typewriter.is_complete:
             for event in events:
                 if event.type == pygame.KEYDOWN:
@@ -268,28 +271,23 @@ class ChatScene(Scene):
                             typewriter_sound()
 
     def update(self):
-        # Drain the thread-safe UI queue
         try:
             while True:
                 msg = self._ui_queue.get_nowait()
                 if msg.get("type") == "chat_response":
                     response_text = msg.get("text")
-                    if response_text is None:
-                        response_text = "[Erro: Resposta vazia da API]"
+                    
+                    # 1. Thread-safe null and empty string safeguard
+                    if not response_text or not str(response_text).strip():
+                        response_text = "[O Mestre permaneceu em silêncio...]"
+                        self._show_input()
 
-                    # Extract JSON state updates
-                    import re
-                    json_pattern = r'```json\s*(.*?)\s*```'
-                    match = re.search(json_pattern, response_text, re.DOTALL)
-                    if match:
-                        try:
-                            json_data = json.loads(match.group(1))
-                            self._update_player_state(json_data)
-                            # Display JSON inline by stripping only the markdown fences
-                            response_text = re.sub(r'```json\s*', '', response_text)
-                            response_text = re.sub(r'```', '', response_text)
-                        except Exception as e:
-                            print(f"Error processing AI JSON: {e}")
+                    json_payloads = self._extract_json_payloads(response_text)
+                    for data in json_payloads:
+                        self._update_player_state(data)
+
+                    response_text = re.sub(r'```json\s*', '', response_text)
+                    response_text = re.sub(r'```', '', response_text)
 
                     log_to_session(f"DM: {response_text}")
                     self.active_typewriter = TypewriterManager(response_text, speed_ms=25)
@@ -298,7 +296,6 @@ class ChatScene(Scene):
 
         super().update()
         if self.active_typewriter and not self.active_typewriter.is_complete:
-            # Read continuous state of the keyboard for smooth fast-forwarding
             keys = pygame.key.get_pressed()
             fast_forward_active = keys[pygame.K_SPACE]
             
@@ -349,11 +346,33 @@ class ChatScene(Scene):
     def end_combat(self):
         self.combat_button.visible = self.combat_button.enabled = False
         if self.eminent_combat:
-            self.game.chat.send_message(f"event:combat_ended\n"
-                                f"Victory:{str(self.eminent_combat.result.victory)}\n"
-                                f"Player Fled:{str(self.eminent_combat.result.player_flee)}\n"
-                                f"Enemies Flee: {len(self.eminent_combat.result.enemies_flee)}\n"
-                                f"Player Kills: {self.eminent_combat.result.kills}\n"
-                                f"Total Enemies: {len(self.eminent_combat.result.enemies)}", callback=self._on_chat_response)
+            result = getattr(self.eminent_combat, "result", None)
+            
+            # Extract attributes safely with fallback defaults
+            victory = getattr(result, "victory", False)
+            player_flee = getattr(result, "player_flee", False)
+            enemies_flee = getattr(result, "enemies_flee", [])
+            kills = getattr(result, "kills", 0)
+            enemies = getattr(result, "enemies", [])
+            
+            xp_earned = getattr(result, "xp_earned", 0)
+            loot_items = getattr(result, "loot_items", [])
+
+            # Format combat result payload
+            msg = (
+                f"event:combat_ended\n"
+                f"Victory:{victory}\n"
+                f"Player Fled:{player_flee}\n"
+                f"Enemies Flee:{len(enemies_flee)}\n"
+                f"Player Kills:{kills}\n"
+                f"Total Enemies:{len(enemies)}"
+            )
+
+            # Optional yield context supplied without forcing AI execution
+            if xp_earned or loot_items:
+                msg += f"\nYield Context (DM discretion): XP={xp_earned}, Items={loot_items}"
+
+            self.game.chat.send_message(msg, callback=self._on_chat_response)
             self.eminent_combat = None
+
         self._show_input()
