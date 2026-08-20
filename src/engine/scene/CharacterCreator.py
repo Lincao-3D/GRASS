@@ -54,12 +54,43 @@ class CharacterCreator(Scene):
             self.selected_name = self._gerar_nome(random.randint(6, 8), bool(random.randint(0, 1)))
 
             # 2. RUN THE DICE/REROLL LOGIC BEFORE BUILDING THE UI
-            self.rolled_atribs = roll_attribs()
-            while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
+            is_physical = getattr(self.game, "physical_dice_enabled", False)
+            self.show_physical_modal = is_physical
+
+            if is_physical:
+                self.physical_dice_inputs = []
+                self.rolled_atribs = []
+                for i in range(6):
+                    row_inputs = []
+                    for d in range(4):
+                        inp = TextInput(
+                            position=(0, 0),
+                            width=45,
+                            height=30,
+                            initial_text="4",
+                            text_size=14,
+                            on_change=lambda text, idx=i: self._on_physical_d6_changed(idx)
+                        )
+                        row_inputs.append(inp)
+                    self.physical_dice_inputs.append(row_inputs)
+                    self.rolled_atribs.append(12)
+            else:
+                self.physical_dice_inputs = []
                 self.rolled_atribs = roll_attribs()
-            
+                while len(set(self.rolled_atribs)) != len(self.rolled_atribs):
+                    self.rolled_atribs = roll_attribs()
+
             self.dice_assignments = {} # {column_index: (Attribute, Value)}
             self.selected_attribs = {} # Final valid mapping
+
+            self.physical_done_button = Button(
+                image=None,
+                position=(0, 0),
+                background_color=(100, 255, 100),
+                text=SimpleText(text="Done & Apply Rolls", size=18, position=(0, 0), text_color=(0, 0, 0)),
+                hover_transform_strategy=ColorInverter(),
+                click_function=self._close_physical_modal
+            )
 
             # 3. NOW BUILD THE UI ELEMENTS USING THE GENERATED DICE NUMBERS
             self.skills_radio_button = RadioButtonGroup(
@@ -75,11 +106,12 @@ class CharacterCreator(Scene):
             for i, radio_group in enumerate(self.attrib_radio_button):
                 radio_group.on_change = lambda p, x, idx=i: self._attrib_changed(idx, self.rolled_atribs[i], p, x)
 
+            reroll_label = "Physical Dice" if is_physical else f"Reroll ({self.re_rolls})"
             self.reroll_button = Button(
                 image=None,
                 position=(24, 24),
                 background_color=(255, 255, 255),
-                text=SimpleText(text="Reroll (3)", text_color=(0, 0, 0), position=(0, 0), size=24),
+                text=SimpleText(text=reroll_label, text_color=(0, 0, 0), position=(0, 0), size=20 if is_physical else 24),
                 hover_transform_strategy=ColorInverter(),
                 click_function=self._reroll
             )
@@ -98,15 +130,22 @@ class CharacterCreator(Scene):
             # 5. Initialize visuals and trigger opening sequence
             self.elements.append(self.attrib_checklist) 
             self._update_attrib_checklist()
-            self._start_dice_animation()
+            if not is_physical:
+                self._start_dice_animation()
 
             # --- CINEMATIC SEQUENCE SETUP ---
             sw, sh = screen.get_width(), screen.get_height()
-            self.stripe_queue = [
-                HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
-                HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500),
-                HorizontalBar(sw, sh, f"Resultados: {', '.join(map(str, self.rolled_atribs))}", hold_duration_ms=800)
-            ]
+            if is_physical:
+                self.stripe_queue = [
+                    HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
+                    HorizontalBar(sw, sh, "Modo Dados Físicos: Insira seus dados!", hold_duration_ms=600)
+                ]
+            else:
+                self.stripe_queue = [
+                    HorizontalBar(sw, sh, "O jogo vai começar!", hold_duration_ms=400),
+                    HorizontalBar(sw, sh, "Rolando dados...", hold_duration_ms=500),
+                    HorizontalBar(sw, sh, f"Resultados: {', '.join(map(str, self.rolled_atribs))}", hold_duration_ms=800)
+                ]
             
             self._next_stripe()
 
@@ -152,7 +191,115 @@ class CharacterCreator(Scene):
                     self.elements.remove(bar)
                 self._next_stripe() # Trigger the next one when this one finishes!
 
+    def handle_events(self, events: List[pygame.event.Event], mouse_pos: tuple = (0, 0)):
+        if getattr(self, "show_physical_modal", False):
+            for event in events:
+                for row in self.physical_dice_inputs:
+                    for inp in row:
+                        inp.update(event, mouse_pos)
+                self.physical_done_button.update(event, mouse_pos)
+            return
+
+        super().handle_events(events, mouse_pos)
+
+    def render(self, screen: pygame.Surface):
+        super().render(screen)
+        if getattr(self, "show_physical_modal", False):
+            self._render_physical_modal(screen)
+
+    def _render_physical_modal(self, screen: pygame.Surface):
+        sw, sh = screen.get_width(), screen.get_height()
+        modal_w, modal_h = 760, 560
+        modal_x = (sw - modal_w) // 2
+        modal_y = (sh - modal_h) // 2
+
+        # Dim background
+        dim = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 190))
+        screen.blit(dim, (0, 0))
+
+        # Panel frame
+        panel = pygame.Surface((modal_w, modal_h))
+        panel.fill((20, 24, 35))
+        screen.blit(panel, (modal_x, modal_y))
+        pygame.draw.rect(screen, (100, 180, 255), (modal_x, modal_y, modal_w, modal_h), 2)
+
+        # Header text
+        # Header text - Line 1
+        title = get_default_font(20).render("Physical Dice Entry", True, (255, 215, 0))
+        screen.blit(title, (modal_x + 30, modal_y + 20))
+
+        # Header text - Line 2 (shifted down by 24 pixels)
+        title1 = get_default_font(20).render("(4d6 Drop Lowest)", True, (255, 215, 0))
+        screen.blit(title1, (modal_x + 30, modal_y + 44))  # Notice title1 and increased Y
+
+        subtitle = get_default_font(13).render("Enter the 4 d6 values rolled physically for each", True, (200, 200, 200))
+        screen.blit(subtitle, (modal_x + 30, modal_y + 70))
+        subtitle = get_default_font(13).render("of the 6 attribute scores:", True, (200, 200, 200))
+        screen.blit(subtitle, (modal_x + 30, modal_y + 83))
+
+        for i in range(6):
+            y = modal_y + 104 + i * 65
+            lbl = get_default_font(18).render(f"Roll {i + 1}:", True, (255, 255, 255))
+            screen.blit(lbl, (modal_x + 30, y + 5))
+
+            d_vals = []
+            for d in range(4):
+                inp = self.physical_dice_inputs[i][d]
+                x = modal_x + 160 + d * 60
+                inp.position = (x, y)
+                inp.base_y = y
+                inp.rect.x = x
+                inp.rect.y = y
+                inp.render(screen)
+
+                txt = inp.text_str.strip()
+                if txt.isdigit():
+                    d_vals.append(max(1, min(6, int(txt))))
+                else:
+                    d_vals.append(1)
+
+            sorted_vals = sorted(d_vals, reverse=True)
+            sum_best3 = sum(sorted_vals[:3])
+            dropped = sorted_vals[3]
+
+            res_txt = get_default_font(16).render(f"= {sum_best3} (dropped {dropped})", True, (100, 255, 100))
+            screen.blit(res_txt, (modal_x + 390, y + 6))
+
+        btn_x = modal_x + (modal_w - 200) // 2
+        btn_y = modal_y + modal_h - 55
+        self.physical_done_button.position = (btn_x, btn_y)
+        self.physical_done_button.rect.topleft = (btn_x, btn_y)
+        self.physical_done_button.render(screen)
+
+    def _on_physical_d6_changed(self, roll_idx: int):
+        if not self.physical_dice_inputs or roll_idx >= len(self.physical_dice_inputs):
+            return
+        inputs = self.physical_dice_inputs[roll_idx]
+        vals = []
+        for inp in inputs:
+            txt = inp.text_str.strip()
+            if txt.isdigit():
+                vals.append(max(1, min(6, int(txt))))
+            else:
+                vals.append(1)
+        sorted_vals = sorted(vals, reverse=True)
+        best3_sum = sum(sorted_vals[:3])
+        self.rolled_atribs[roll_idx] = best3_sum
+        if roll_idx < len(self.attrib_radio_button):
+            self.attrib_radio_button[roll_idx].set_text(f"Dado: {best3_sum}")
+        self._update_attrib_checklist()
+
+    def _close_physical_modal(self):
+        self.show_physical_modal = False
+        for i in range(6):
+            self._on_physical_d6_changed(i)
+
     def _reroll(self):
+        if getattr(self.game, "physical_dice_enabled", False):
+            self.show_physical_modal = True
+            return
+
         if self.re_rolls <= 0:
             return
         self.re_rolls -= 1

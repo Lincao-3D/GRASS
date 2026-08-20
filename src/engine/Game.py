@@ -45,6 +45,7 @@ class Game:
         self.options = {
             "master_volume": 0.5,
             "is_muted": False,
+            "physical_dice_enabled": False,
             "api_key": os.environ.get("debug_api_key", ""),
             "gpt_model": "gemini-1.5-flash",
         }
@@ -65,6 +66,14 @@ class Game:
             if api_key
             else None
         )
+
+    @property
+    def physical_dice_enabled(self) -> bool:
+        return self.options.get("physical_dice_enabled", False)
+
+    @physical_dice_enabled.setter
+    def physical_dice_enabled(self, value: bool):
+        self.options["physical_dice_enabled"] = bool(value)
 
     def get_options_path(self):
         """Helper to guarantee we always hit src/options.json relative to this file."""

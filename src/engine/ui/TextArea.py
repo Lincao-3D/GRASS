@@ -81,64 +81,104 @@ class TextAreaShow(UIElement):
     def _wrap_text(self) -> List[Tuple[Any, str, int]]:
         """
         Parses incoming text stream into layout items.
+        Supports both markdown ```json blocks and raw JSON { ... } blocks.
         Returns tuples of: (payload, item_type, pixel_height)
         """
         lines_out = []
         max_width = self.width - 2 * self.padding
         line_height = self.font.get_height()
         
-        in_code_block = False
-        json_buffer = []
+        text = self._text
+        import json
+        import re
         
-        raw_lines = self._text.split("\n")
-        for raw_line in raw_lines:
-            stripped = raw_line.strip()
-            
-            if stripped.startswith("```"):
-                if in_code_block:
-                    raw_json_str = "\n".join(json_buffer)
-                    try:
-                        card_data = json.loads(raw_json_str)
-                        card_h = self._calculate_card_height(card_data)
-                        lines_out.append((card_data, 'card', card_h))
-                    except Exception:
-                        pass # Fallback if invalid JSON
-                    json_buffer.clear()
-                    in_code_block = False
-                else:
-                    in_code_block = True
-                continue
-
-            if in_code_block:
-                json_buffer.append(raw_line)
-            else:
-                parts = re.split(r'(\*\*.*?\*\*)', raw_line)
-                current_line = []
-                current_line_width = 0
+        # 1. Identify all JSON blocks (markdown wrapped first, then raw brace-wrapped objects)
+        blocks = [] # List of (start_idx, end_idx, parsed_data)
+        
+        # Match markdown blocks
+        for m in re.finditer(r'```json\s*(.*?)\s*```', text, re.DOTALL):
+            try:
+                data = json.loads(m.group(1))
+                blocks.append((m.start(), m.end(), data))
+            except Exception:
+                pass
                 
-                for part in parts:
-                    if not part: continue
-                    is_bold = part.startswith("**") and part.endswith("**")
-                    clean_part = part[2:-2] if is_bold else part
-                    font = self.font_bold if is_bold else self.font
+        # Match raw JSON objects (not inside already identified blocks)
+        stack = []
+        start_idx = -1
+        for i, char in enumerate(text):
+            inside = False
+            for b_start, b_end, _ in blocks:
+                if b_start <= i < b_end:
+                    inside = True
+                    break
+            if inside:
+                continue
+                
+            if char == '{':
+                if not stack:
+                    start_idx = i
+                stack.append('{')
+            elif char == '}':
+                if stack:
+                    stack.pop()
+                    if not stack:
+                        candidate = text[start_idx:i+1]
+                        try:
+                            data = json.loads(candidate)
+                            blocks.append((start_idx, i+1, data))
+                        except ValueError:
+                            pass
+                            
+        # Sort blocks by start index
+        blocks.sort(key=lambda x: x[0])
+        
+        # Segment the text into alternating text and card payloads
+        last_idx = 0
+        segments = []
+        for b_start, b_end, data in blocks:
+            if b_start > last_idx:
+                segments.append((text[last_idx:b_start], 'text'))
+            segments.append((data, 'card'))
+            last_idx = b_end
+        if last_idx < len(text):
+            segments.append((text[last_idx:], 'text'))
+            
+        # Process and wrap each segment
+        for payload, seg_type in segments:
+            if seg_type == 'card':
+                card_h = self._calculate_card_height(payload)
+                lines_out.append((payload, 'card', card_h))
+            else:
+                raw_lines = payload.split("\n")
+                for raw_line in raw_lines:
+                    parts = re.split(r'(\*\*.*?\*\*)', raw_line)
+                    current_line = []
+                    current_line_width = 0
                     
-                    words = clean_part.split(" ")
-                    for i, word in enumerate(words):
-                        display_word = word + (" " if i < len(words) - 1 else "")
-                        word_width = font.size(display_word)[0]
-                        style = 'bold' if is_bold else 'normal'
+                    for part in parts:
+                        if not part: continue
+                        is_bold = part.startswith("**") and part.endswith("**")
+                        clean_part = part[2:-2] if is_bold else part
+                        font = self.font_bold if is_bold else self.font
                         
-                        if current_line_width + word_width <= max_width:
-                            current_line.append((display_word, style))
-                            current_line_width += word_width
-                        else:
-                            if current_line:
-                                lines_out.append((current_line, 'text', line_height))
-                            current_line = [(display_word, style)]
-                            current_line_width = word_width
-                if current_line or not raw_line:
-                    lines_out.append((current_line, 'text', line_height))
-
+                        words = clean_part.split(" ")
+                        for i, word in enumerate(words):
+                            display_word = word + (" " if i < len(words) - 1 else "")
+                            word_width = font.size(display_word)[0]
+                            style = 'bold' if is_bold else 'normal'
+                            
+                            if current_line_width + word_width <= max_width:
+                                current_line.append((display_word, style))
+                                current_line_width += word_width
+                            else:
+                                if current_line:
+                                    lines_out.append((current_line, 'text', line_height))
+                                current_line = [(display_word, style)]
+                                current_line_width = word_width
+                    if current_line or not raw_line:
+                        lines_out.append((current_line, 'text', line_height))
+                        
         return lines_out
 
     def _get_scrollbar_metrics(self, total_height: int, visible_height: int):

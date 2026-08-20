@@ -14,6 +14,7 @@ from src.engine.ui.EntityImg import EntityImg
 from src.engine.ui.ImageTransformStrategy import ColorInverter
 from src.engine.ui.RadioButton import RadioButtonGroup
 from src.engine.ui.SimpleText import SimpleText
+from src.engine.ui.TextInput import TextInput
 from src.model.Item import Usable
 from src.model.combat import Combat
 from src.model.entity import Entity
@@ -36,6 +37,27 @@ class CombatScene(Scene):
         # Dice animation state variables
         self.dice_animation = None
         self.roll_animation_active = False
+
+        # Physical dice roll modal components
+        self.physical_roll_active = False
+        self.physical_d20_input = TextInput(
+            position=(0, 0),
+            width=120,
+            height=35,
+            initial_text="",
+            text_size=18,
+            label_str="Result d20 (1-20):",
+            label_top=True
+        )
+        self.physical_roll_error = SimpleText("", 16, (0, 0), (255, 60, 60))
+        self.physical_roll_submit_button = Button(
+            image=None,
+            position=(0, 0),
+            background_color=(100, 255, 100),
+            text=SimpleText("Submit Roll", 18, (0, 0), (0, 0, 0)),
+            hover_transform_strategy=ColorInverter(),
+            click_function=self._submit_physical_attack_roll
+        )
 
         self.rg_skill_select = RadioButtonGroup(
             position=(50, screen.get_height()  - screen.get_height() // 4),
@@ -144,13 +166,62 @@ class CombatScene(Scene):
         if self.roll_animation_active and self.dice_animation:
             self.dice_animation.draw(screen)
             
-    def handle_events(self, events):
-        # 1. Define mouse_pos by grabbing it from pygame
-        mouse_pos = pygame.mouse.get_pos()
-        
+    def render(self, screen: pygame.Surface):
+        super().render(screen)
+        if getattr(self, "physical_roll_active", False):
+            self._render_physical_roll_modal(screen)
+
+    def _render_physical_roll_modal(self, screen: pygame.Surface):
+        sw, sh = screen.get_width(), screen.get_height()
+        modal_w, modal_h = 440, 240
+        modal_x = (sw - modal_w) // 2
+        modal_y = (sh - modal_h) // 2
+
+        dim = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 190))
+        screen.blit(dim, (0, 0))
+
+        panel = pygame.Surface((modal_w, modal_h))
+        panel.fill((20, 24, 35))
+        screen.blit(panel, (modal_x, modal_y))
+        pygame.draw.rect(screen, (255, 215, 0), (modal_x, modal_y, modal_w, modal_h), 2)
+
+        title = get_default_font(22).render("Physical Attack Roll", True, (255, 215, 0))
+        screen.blit(title, (modal_x + 30, modal_y + 20))
+
+        prompt = get_default_font(14).render(f"Roll a d20 physically to attack {self.target.name}:", True, (220, 220, 220))
+        screen.blit(prompt, (modal_x + 30, modal_y + 55))
+
+        inp_x = modal_x + (modal_w - 120) // 2
+        inp_y = modal_y + 105
+        self.physical_d20_input.position = (inp_x, inp_y)
+        self.physical_d20_input.base_y = inp_y
+        self.physical_d20_input.rect.x = inp_x
+        self.physical_d20_input.rect.y = inp_y
+        self.physical_d20_input.render(screen)
+
+        btn_x = modal_x + (modal_w - 140) // 2
+        btn_y = modal_y + 160
+        self.physical_roll_submit_button.position = (btn_x, btn_y)
+        self.physical_roll_submit_button.rect.topleft = (btn_x, btn_y)
+        self.physical_roll_submit_button.render(screen)
+
+        if self.physical_roll_error.text:
+            err_surf = get_default_font(14).render(self.physical_roll_error.text, True, (255, 80, 80))
+            err_x = modal_x + (modal_w - err_surf.get_width()) // 2
+            screen.blit(err_surf, (err_x, modal_y + 205))
+
+    def handle_events(self, events: List[pygame.event.Event], mouse_pos: tuple = (0, 0)):
+        if getattr(self, "physical_roll_active", False):
+            for event in events:
+                self.physical_d20_input.update(event, mouse_pos)
+                self.physical_roll_submit_button.update(event, mouse_pos)
+                if event.type == pygame.KEYDOWN and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    self._submit_physical_attack_roll()
+            return
+
         super().handle_events(events, mouse_pos)
-        
-        # 2. Iterate through the events list to define 'event'
+
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_END:
                 for enemy in self.combat.enemies:
@@ -219,13 +290,39 @@ class CombatScene(Scene):
         self.selected_item = item
 
     def _player_attack(self):
-        # Start dice animation FIRST (pure atmosphere, no text overlay)
+        if getattr(self.game, "physical_dice_enabled", False):
+            self.physical_roll_active = True
+            self.physical_d20_input.focus = True
+            self.physical_d20_input.text_str = ""
+            self.physical_d20_input.cursor = 0
+            self.physical_d20_input.anchor = 0
+            self.physical_roll_error.change_text("")
+            pygame.key.start_text_input()
+            return
+
         self._start_dice_animation()
-        
-        # Roll happens immediately (hidden), animation provides visual feedback
         passed, result, damage = self.game.player.attack(self.target)
-        
-        # Schedule log text AFTER animation (handled by update timing)
+        self._resolve_attack_result(passed, result, damage)
+
+    def _submit_physical_attack_roll(self):
+        txt = self.physical_d20_input.text_str.strip()
+        if not txt.isdigit():
+            self.physical_roll_error.change_text("Please enter a valid number (1-20)!")
+            return
+        val = int(txt)
+        if val < 1 or val > 20:
+            self.physical_roll_error.change_text("Roll must be between 1 and 20!")
+            return
+
+        self.physical_roll_active = False
+        self.physical_roll_error.change_text("")
+        pygame.key.stop_text_input()
+
+        self._start_dice_animation()
+        passed, result, damage = self.game.player.attack(self.target, raw_d20=val)
+        self._resolve_attack_result(passed, result, damage)
+
+    def _resolve_attack_result(self, passed, result, damage):
         self.combat.print_text(f"You rolled {result} {'(success!)' if passed else '(miss!)'}")
         if passed and damage > 0:
             self.combat.delayed_action(

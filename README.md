@@ -12,6 +12,11 @@ O **GRASS** é um jogo de RPG de texto inovador construído em Python. Utiliza a
 * **Interface Gráfica Personalizada:** Elementos de UI construídos de raiz sobre o Pygame, incluindo botões, barras de vida, caixas de texto e imagens estáticas.
 * **Gestão de Inventário:** Colete, utilize e venda itens (`Item.py`, `player.py`).
 
+## 🗺️ Assistente de Mudança de tipo de Crônica 
+### ✨ Mude tudo no RPG com o auxílio da IA, recebendo um novo _cenário_ e um _prompt para alterar o modelo_ com o agente de sua preferência
+* **Geração de Novos Cenários:** Criação guiada via IA de premissas, universos e prompts de sistema (`scenario.py`) para reescrever o mundo e as diretrizes do Mestre
+* **Prompts Agênticos para Refatoração:** Compilação do código das mecânicas do jogo (`src/model`) para instruir LLMs a adaptar entidades, classes, efeitos e itens à nova crônica
+
 ## 🛠️ Tecnologias Utilizadas
 
 * **Linguagem:** Python 3.10+

@@ -14,7 +14,11 @@ class Toggle(UIElement):
         self.rect = pygame.Rect(x, y, width, height)
         
         # Scale text relative to toggle height
-        self.font_size = max(14, self.height // 2)
+        #self.font_size = max(10, self.height // 2 * 0.72)
+        # Scale text relative to toggle height (diminished by 28% and converted to integer)
+        self.font_size = int(max(10, (self.height // 2) * 0.72))
+
+
 
     def render(self, screen):
         """This is the method called by Scene.py. We redirect it to our draw logic."""

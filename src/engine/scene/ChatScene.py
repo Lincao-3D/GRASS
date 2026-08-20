@@ -35,7 +35,7 @@ class ChatScene(Scene):
         self.sound_cooldown = 0.08
         self.loading = False
         self.active_typewriter = None 
-
+        self._ui_queue = queue.Queue()
         # 2. Setup UI Elements
         initial_text = ""
         if hasattr(self.game, "chat") and self.game.chat and getattr(self.game.chat, "history", None):
@@ -120,7 +120,7 @@ class ChatScene(Scene):
             image=None,
             text=SimpleText("Sheet", 18, (0, 0), (255, 255, 255)),
             background_color=(150, 50, 50),
-            position=(screen.get_width() - 400, 20),
+            position=(screen.get_width() - 665, 20),
             click_function=self._toggle_char_sheet
         )
 
@@ -226,24 +226,7 @@ class ChatScene(Scene):
             self._on_chat_response(f"[Erro na API: {str(e)}]")
 
     def _on_chat_response(self, response_text):
-        if response_text is None:
-            response_text = "[Erro: Resposta vazia da API]"
-
-        # Extract JSON state updates
-        import re
-        json_pattern = r'```json\s*(.*?)\s*```'
-        match = re.search(json_pattern, response_text, re.DOTALL)
-        if match:
-            try:
-                json_data = json.loads(match.group(1))
-                self._update_player_state(json_data)
-                # Remove the JSON block from the text shown to the user
-                response_text = re.sub(json_pattern, '', response_text, flags=re.DOTALL).strip()
-            except Exception as e:
-                print(f"Error processing AI JSON: {e}")
-
-        log_to_session(f"DM: {response_text}")
-        self.active_typewriter = TypewriterManager(response_text, speed_ms=25)
+        self._ui_queue.put({"type": "chat_response", "text": response_text})
 
     def _update_player_state(self, data: dict):
         """Processes JSON blocks from the AI to update character state."""
@@ -285,6 +268,34 @@ class ChatScene(Scene):
                             typewriter_sound()
 
     def update(self):
+        # Drain the thread-safe UI queue
+        try:
+            while True:
+                msg = self._ui_queue.get_nowait()
+                if msg.get("type") == "chat_response":
+                    response_text = msg.get("text")
+                    if response_text is None:
+                        response_text = "[Erro: Resposta vazia da API]"
+
+                    # Extract JSON state updates
+                    import re
+                    json_pattern = r'```json\s*(.*?)\s*```'
+                    match = re.search(json_pattern, response_text, re.DOTALL)
+                    if match:
+                        try:
+                            json_data = json.loads(match.group(1))
+                            self._update_player_state(json_data)
+                            # Display JSON inline by stripping only the markdown fences
+                            response_text = re.sub(r'```json\s*', '', response_text)
+                            response_text = re.sub(r'```', '', response_text)
+                        except Exception as e:
+                            print(f"Error processing AI JSON: {e}")
+
+                    log_to_session(f"DM: {response_text}")
+                    self.active_typewriter = TypewriterManager(response_text, speed_ms=25)
+        except queue.Empty:
+            pass
+
         super().update()
         if self.active_typewriter and not self.active_typewriter.is_complete:
             # Read continuous state of the keyboard for smooth fast-forwarding
@@ -338,11 +349,11 @@ class ChatScene(Scene):
     def end_combat(self):
         self.combat_button.visible = self.combat_button.enabled = False
         if self.eminent_combat:
-            self.game.chat.submit(f"event:combat_ended\n"
+            self.game.chat.send_message(f"event:combat_ended\n"
                                 f"Victory:{str(self.eminent_combat.result.victory)}\n"
                                 f"Player Fled:{str(self.eminent_combat.result.player_flee)}\n"
                                 f"Enemies Flee: {len(self.eminent_combat.result.enemies_flee)}\n"
                                 f"Player Kills: {self.eminent_combat.result.kills}\n"
-                                f"Total Enemies: {len(self.eminent_combat.result.enemies)}")
+                                f"Total Enemies: {len(self.eminent_combat.result.enemies)}", callback=self._on_chat_response)
             self.eminent_combat = None
         self._show_input()

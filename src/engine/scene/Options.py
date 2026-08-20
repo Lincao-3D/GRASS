@@ -48,17 +48,27 @@ class Options(Scene):
             on_change=self._on_mute_change,
         ))
 
-        # 3. Scenario Assistant 
+        # 3. Roll Dice Physically Toggle
+        current_physical = self.game.physical_dice_enabled
+        elements.append(SimpleText("Rolar Dados Fisicamente", 10, (screen_w // 2 - 150, 270)))
+        elements.append(Toggle(
+            x= screen_w // 2 + 89,
+            y= 270,
+            is_on=current_physical,
+            on_change=self._on_physical_dice_change,
+        ))
+
+        # 4. Scenario Assistant 
         elements.append(Button(
             image=None,
             text=SimpleText("Assistente de mudança de Cenário/Mundo/Crônica", 12, (0, 0), (255, 215, 0)),
             background_color=(50, 50, 50),
-            position=(screen_w // 2 - 150, 300),
+            position=(screen_w // 2 - 150, 340),
             click_function=self._open_scenario_assistant,
             tooltip_text="Facilita a alteração do cenário/mundo - ou mude completamente o tipo de RPG"
         ))
 
-        # 4. Save & Return to Main Menu
+        # 5. Save & Return to Main Menu
         elements.append(Button(
             image=None,
             text=SimpleText("Save & Return", 24, (0, 0), (255, 255, 255)),
@@ -67,7 +77,7 @@ class Options(Scene):
             tooltip_text="Salva quaisquer alterações e retorna para o menu principal"
         ))
 
-        # 4. Return to Game (if applicable)
+        # 6. Return to Game (if applicable)
         if self.game.player is not None:
             elements.append(Button(
                 image=None,
@@ -88,6 +98,11 @@ class Options(Scene):
     def _on_mute_change(self, is_muted: bool):
         """Called when the toggle is clicked."""
         self.game.options["is_muted"] = is_muted
+        self.game.save_options()
+
+    def _on_physical_dice_change(self, is_enabled: bool):
+        """Called when physical dice toggle is clicked."""
+        self.game.physical_dice_enabled = is_enabled
         self.game.save_options()
 
     def _return_to_main(self):
