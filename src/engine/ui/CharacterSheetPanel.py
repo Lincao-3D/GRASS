@@ -11,28 +11,27 @@ class CharacterSheetPanel(UIElement):
         self.player = player
         self.screen = screen
         self.width = 410
-        self.height = screen.get_height()
         self.target_x = screen.get_width()
         self.current_x = screen.get_width()
         self.is_open = False
-        self.animation_speed = 20
+        self.animation_speed = 28
         self.padding = 20
         self.font_large = get_default_font(28)
         self.font_medium = get_default_font(20)
         self.font_small = get_default_font(16)
         
-        self.rect = pygame.Rect(self.current_x, 0, self.width, self.height)
-        self.visible = True # Always updating for animation
+        self.rect = pygame.Rect(self.current_x, 0, self.width, screen.get_height())
+        self.visible = True
 
     def toggle(self):
         self.is_open = not self.is_open
         if self.is_open:
-            self.target_x = self.screen.get_width() - self.width - 100 #since this offset didn't work, I'll need more x offset to make it visible
+            # Sit flush against the right border
+            self.target_x = self.screen.get_width() - self.width
         else:
             self.target_x = self.screen.get_width()
 
     def update(self, event: pygame.event.Event, mouse_position: Tuple[int, int]):
-        # Animate sliding
         if self.current_x != self.target_x:
             if self.current_x < self.target_x:
                 self.current_x = min(self.target_x, self.current_x + self.animation_speed)
@@ -44,26 +43,26 @@ class CharacterSheetPanel(UIElement):
         if self.current_x >= self.screen.get_width():
             return
 
-        # Background
-        panel_rect = pygame.Rect(self.current_x, 0, self.width, self.height)
+        screen_h = self.screen.get_height()
+
+        # Background panel (Dynamic height)
+        panel_rect = pygame.Rect(self.current_x, 0, self.width, screen_h)
         pygame.draw.rect(surface, (30, 30, 30, 230), panel_rect)
         pygame.draw.rect(surface, (200, 200, 200), panel_rect, 2)
 
-        # Content
         x_offset = self.current_x + self.padding
         y_offset = self.padding
 
-       # Name & Title
+        # Name & Title
         title_surf = self.font_large.render(f"{self.player.name}", True, (255, 215, 0))
         surface.blit(title_surf, (x_offset, y_offset))
         y_offset += 40
 
-        # Fix: Split by newline and render each line separately
         class_text = f"{self.player.clazz.name} (Lvl 1)\n- {self.player.race}"
         for line in class_text.split('\n'):
             class_surf = self.font_small.render(line, True, (200, 200, 200))
             surface.blit(class_surf, (x_offset, y_offset))
-            y_offset += 20  # Smaller increment for subtitle lines
+            y_offset += 20
 
         y_offset += 20
 
@@ -81,6 +80,7 @@ class CharacterSheetPanel(UIElement):
             y_offset += 30
         
         y_offset += 10
+        
         # Attributes
         attr_title = self.font_medium.render("Attributes", True, (255, 255, 255))
         surface.blit(attr_title, (x_offset, y_offset))
@@ -96,12 +96,13 @@ class CharacterSheetPanel(UIElement):
             y_offset += 22
 
         y_offset += 15
-        # Skills (Top 3 or summarized)
+        
+        # Skills
         skill_title = self.font_medium.render("Skills", True, (255, 255, 255))
         surface.blit(skill_title, (x_offset, y_offset))
         y_offset += 25
 
-        for skill in self.player.skills[:5]: # Show first 5
+        for skill in self.player.skills[:5]:
             skill_text = f"• {skill.name}"
             skill_surf = self.font_small.render(skill_text, True, (180, 255, 180))
             surface.blit(skill_surf, (x_offset, y_offset))

@@ -261,9 +261,13 @@ class CombatScene(Scene):
         for button in self.action_buttons:
             button.visible = self.combat.is_player_turn
             button.enabled = self.combat.is_player_turn
+    # fallback to previous button grid position if the new one causes issues with rendering off-screen
+    # def _button_grid_position(self, index, screen):
+    #     return grid_position(index, 24, screen.get_height() - 50, 300, 50, 4, 20, 8)
 
     def _button_grid_position(self, index, screen):
-        return grid_position(index, 24, screen.get_height() - 50, 300, 50, 4, 20, 8)
+        # Anchor start_y higher (screen.get_height() - 140) so 2nd row items render on-screen
+        return grid_position(index, 24, screen.get_height() - 140, 300, 50, 4, 20, 8)
 
     def _set_selected_skill(self, _, skill: Skill):
         self.selected_skill = skill

@@ -370,33 +370,32 @@ class CharacterCreator(Scene):
         new_elements = [e for e in self.elements if not getattr(e, 'is_checklist', False)]
         
         screen_w = self.screen.get_width()
+        screen_h = self.screen.get_height()
         MARGIN = 40
         USABLE_WIDTH = screen_w - (MARGIN * 2)
-        COL_4_X = MARGIN + (USABLE_WIDTH / 4 * 2.35)  # Your exact column
-        y_offset = 641  # Your exact Y start
-        line_height = 28  # Your exact spacing
+        COL_4_X = MARGIN + (USABLE_WIDTH / 4 * 2.35)
+
+        # Calculate start Y and line spacing relative to viewport height
+        y_offset = screen_h - 240
+        line_height = max(20, int(screen_h * 0.038))
 
         # → Your header (enhanced with persistent rolled pool)
         pool_str = f"Pool: {', '.join(map(str, getattr(self, 'rolled_atribs', [])))}"
         header = SimpleText(
             text=f"Attributes ({pool_str}):",
             size=17,
-            position=(COL_4_X, y_offset - 40),
+            position=(COL_4_X, y_offset - 35),
             text_color=(255, 215, 0)
         )
         header.is_checklist = True
         new_elements.append(header)
 
-        # NEW: Calculate attribute usage counts first
         attr_counts = {}
         for idx, (attr, val) in self.dice_assignments.items():
             attr_counts[attr] = attr_counts.get(attr, 0) + 1
         
-        # Valid only if used exactly once
         self.selected_attribs = {a: v for idx, (a, v) in self.dice_assignments.items() if attr_counts[a] == 1}
 
-        # → Your items loop (enhanced with conflict detection)
-        # Inside _update_attrib_checklist(), replace the items loop:
         for attr in CharacterAttrib:
             count = attr_counts.get(attr, 0)
             valor = self.selected_attribs.get(attr)
@@ -418,7 +417,6 @@ class CharacterCreator(Scene):
             new_elements.append(txt)
             y_offset += line_height
         
-        # Apply the new list
         self.elements[:] = new_elements
 
 
