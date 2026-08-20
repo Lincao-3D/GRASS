@@ -119,8 +119,8 @@ class CharacterCreator(Scene):
             # REPLACE checklist with correct position
             self.attrib_checklist = SimpleText(
                 text="Attributes: Select to check", 
-                position=(self.screen.get_width() - 500, 580),
-                size=13,
+                position=(self.screen.get_width() - 500, 400),
+                size=11,
                 text_color=(200, 200, 200),
             )
 
@@ -340,7 +340,7 @@ class CharacterCreator(Scene):
 
                 header = SimpleText(
                     text="Attributes:",
-                    size=20, # Slightly smaller header
+                    size=11, # Slightly smaller header
                     position=(COL_4, y_offset - 30),
                     text_color=(255, 215, 0)
                 )
@@ -621,9 +621,10 @@ class CharacterCreator(Scene):
             # --- Column 3: Expertises ---
             RadioButtonGroup(
                 label_str="Select 4 Expertises",
-                position=(COL_2, 480),
+                position=(COL_2 - 110, 350),
                 options=[(expertise.value, expertise) for expertise in CharacterExpertise],
                 multiselect=4, 
+                text_size=10,
                 on_change=self._change_expertise
             ),
             
