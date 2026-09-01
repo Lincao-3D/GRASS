@@ -17,6 +17,18 @@ O **GRASS** é um jogo de RPG de texto inovador construído em Python. Utiliza a
 * **Geração de Novos Cenários:** Criação guiada via IA de premissas, universos e prompts de sistema (`scenario.py`) para reescrever o mundo e as diretrizes do Mestre
 * **Prompts Agênticos para Refatoração:** Compilação do código das mecânicas do jogo (`src/model`) para instruir LLMs a adaptar entidades, classes, efeitos e itens à nova crônica
 
+_Imagens de exemplo:_
+<img src="https://drive.google.com/uc?export=download&id=1rhMIuopm422UIYWcGgeluRto7k4__CC7" width="440" />
+<img src="https://drive.google.com/uc?export=download&id=1bgC2Ozv8AAaan0N1wzLRyOjYsJYpVLJ1" width="440" />
+(Basta seguir o passo a passo; primeiro a IA busca o contexto e depois gera com base nele)
+
+## 🎲 Modo de Dado Físico implementado
+### 🧩 Neste modo, o jogo e a IA vão pedir que você digite os resultados de seus dados físicos, tornando a experiência ainda mais original.
+_Imagens de Exemplo:_
+<img src="https://drive.google.com/uc?export=download&id=1VL-cke-uM5HnsJF7igqCNhUWTXl5jbF2" width="440" />
+<img src="https://drive.google.com/uc?export=download&id=1ppt1rx9Gsdqv29-oXI7Wj0tVNwgAsCN2" width="440" />
+(Para informar o resultado do(s) dado(s) in-game você pode digitar, conforme no exemplo "dice_result: X" ou apenas informar com linguagem natural para a IA "O resultado da rolagem foi: X." e, então, ponto final - continue digitando o que pretende fazer naquela cena em questão)
+
 ## 🛠️ Tecnologias Utilizadas
 
 * **Linguagem:** Python 3.10+
